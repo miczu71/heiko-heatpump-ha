@@ -42,7 +42,7 @@ async def async_setup_entry(
             max_value=60.0,
             step=0.5,
             unit=UnitOfTemperature.CELSIUS,
-            coordinator_read_key=None,     # DHW setpoint not in realdata frame
+            coordinator_read_key='DHW_Setpoint',  # populated from CMD 0x02 setdata frame
             write_coro="async_set_dhw_setpoint",
         ),
         HeikoNumberEntity(

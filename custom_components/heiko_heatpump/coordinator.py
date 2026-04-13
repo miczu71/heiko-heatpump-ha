@@ -23,6 +23,7 @@ from .const import DOMAIN, DEFAULT_FLOW_RATE
 from .protocol import (
     HeatPumpFrame,
     CMD_REALTIME,
+    CMD_SETPARAMS,
     MODE_STANDBY, MODE_HEATING, MODE_COOLING, MODE_DHW, MODE_AUTO,
     build_ack_realtime,
     build_request_realtime,
@@ -106,11 +107,34 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
     async def _on_frame(self, frame: HeatPumpFrame) -> None:
         """
         Callback invoked by HeikoTCPClient for every valid received frame.
-        Handles CMD 0x01 (realtime data push from unit).
+        CMD 0x01: realtime data (every ~30 s) — main sensor update path.
+        CMD 0x02: setdata snapshot (every ~3 min) — reads DHW setpoint.
         """
         if frame.command == CMD_REALTIME:
             await self._handle_realtime(frame)
-        # Other commands (0x02, 0x04, 0x05 replies) are silently ignored for now
+        elif frame.command == CMD_SETPARAMS:
+            await self._handle_setdata(frame)
+        # CMD 0x03/0x04/0x05 replies silently ignored
+
+    async def _handle_setdata(self, frame: HeatPumpFrame) -> None:
+        """
+        Process CMD 0x02 setdata frame (sent by pump every ~3 minutes).
+        Extracts the DHW setpoint (write index 54 = setdata payload index 54)
+        and merges it into the live data dict so the number entity can show
+        the current value even before the user changes it.
+        """
+        if len(frame.payload) < 2 + 54 * 4 + 4:
+            _LOGGER.debug("CMD 0x02 payload too short for DHW setpoint (%d bytes)", len(frame.payload))
+            return
+
+        import struct as _st
+        dhw_offset = 2 + 54 * 4   # same offset formula as realdata
+        dhw_val = _st.unpack_from('<f', frame.payload, dhw_offset)[0]
+        if -1e6 < dhw_val < 1e6 and dhw_val > 0:
+            if self._latest_data:
+                self._latest_data["DHW_Setpoint"] = round(dhw_val, 1)
+                self.async_set_updated_data(self._latest_data)
+                _LOGGER.debug("CMD 0x02: DHW setpoint = %.1f°C", dhw_val)
 
     async def _handle_realtime(self, frame: HeatPumpFrame) -> None:
         """Process a CMD 0x01 realtime data frame."""
