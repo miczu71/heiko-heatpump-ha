@@ -1,58 +1,125 @@
 # apply-discoveries — Turn capture session output into integration code
 
-After running `/capture`, paste the session discovery summary here and this command will update the integration files.
+## Context — what this integration is
+
+Custom Home Assistant integration for a **Heiko / Neoheat Eko II 6kW heat pump**
+connected via a USR-W600 WiFi-to-RS-485 bridge (192.168.0.82:8899).
+
+The integration lives in `custom_components/heiko_heatpump/` and consists of:
+
+```
+__init__.py      — setup/teardown, loads platforms
+protocol.py      — frame parser, float extraction, write frame builders
+coordinator.py   — DataUpdateCoordinator, TCP client owner, write methods
+sensor.py        — read-only sensor entities
+number.py        — writable numeric entities (setpoints)
+select.py        — writable enum entities (modes)
+switch.py        — power on/off switch
+climate.py       — thermostat card (mode + heating setpoint)
+tcp_client.py    — async TCP client with reconnect
+const.py         — constants
+```
+
+## Confirmed write indices (already implemented)
+
+```
+Write index 0  → Power            (1=on, 0=off)
+Write index 3  → WorkingMode      (1=Heating, 2=Cooling, 3=DHW, 4=Auto, 0=Standby)
+Write index 37 → Heating setpoint (°C)
+Write index 54 → DHW setpoint     (°C)
+```
+
+## Protocol constants you must follow
+
+```python
+# Payload offset formula (confirmed empirically):
+payload_offset = 2 + index * 4
+
+# Frame builder pattern (see protocol.py build_write_param):
+payload = struct.pack('<H', write_index) + struct.pack('<f', value)
+# Full frame: AA 55 01 <MN:6> 01 <len:2 LE> 05 <payload> <CRC:2 LE> 3A
+# MN = f4700c77f01a, Target = 0x01, DevID = 0x01
+
+# Write index formula (verified):
+write_index = cloud_setdata_parN - 1
+```
 
 ## What to paste
 
-Paste either:
-- The full terminal output from the capture session, OR
-- Just the discovery summary table at the end
+Paste the discovery summary from a `/capture` session. It looks like:
+
+```
+═══ SESSION DISCOVERY SUMMARY ═══
+[parameter table]
+[new discoveries table]
+[setdata unknowns]
+[next steps]
+═══════════════════════════════
+```
 
 ## What this command does
 
-1. **Reads** the current `custom_components/heiko_heatpump/protocol.py` and `coordinator.py`
-2. **Parses** new write indices from the pasted session output
-3. **Updates** protocol.py:
-   - Adds new `WRITE_IDX_*` constants
-   - Adds new `build_set_*()` functions
-4. **Updates** coordinator.py:
-   - Adds new `async_set_*()` methods
-5. **Creates or updates** the appropriate HA platform file:
-   - New writable parameter → `number.py` (if numeric °C or %) or `select.py` (if enum)
-   - New readable parameter → entry in `sensor.py` SENSOR_DESCRIPTIONS
-6. **Runs the test suite** to verify nothing is broken
-7. **Prints a diff summary** of every change made
+For each new write index discovered:
 
-## Decision rules
+1. Add to `protocol.py`:
+   ```python
+   WRITE_IDX_NEWPARAM = N
+   
+   def build_set_newparam(mn: bytes, value: float, **kwargs) -> bytes:
+       """Set [param name]. Write index N. Confirmed by traffic capture [date]."""
+       return build_write_param(mn, WRITE_IDX_NEWPARAM, value, **kwargs)
+   ```
 
-| Discovered parameter type | Platform to add |
-|--------------------------|-----------------|
-| Temperature setpoint (°C, writable) | `number.py` — slider |
-| Mode / enum (writable) | `select.py` — dropdown |
-| On/Off (writable) | `switch.py` — toggle |
-| Read-only temperature | `sensor.py` — temperature sensor |
-| Read-only numeric | `sensor.py` — measurement sensor |
-| Unknown type | Ask the user before adding |
+2. Add to `coordinator.py`:
+   ```python
+   async def async_set_newparam(self, value: float) -> None:
+       """[description]. Write index N."""
+       await self._send_write(build_set_newparam(self._mn, value), f"NewParam → {value}")
+   ```
 
-## Output
+3. Add the appropriate HA platform entity:
+   - Temperature setpoint (°C, writable) → `number.py` slider
+   - Mode / enum (writable, known values) → `select.py` dropdown  
+   - Boolean (on/off, writable) → `switch.py`
+   - Read-only from setdata → `sensor.py` SENSOR_DESCRIPTIONS entry
 
-After making changes, print:
+4. For new **read-only** setdata slots (seen in CMD 0x02 but no CMD 0x05 confirmed):
+   - Add to `sensor.py` only, with a note "read from setdata CMD 0x02, write unconfirmed"
 
-```
-Changes made:
-  protocol.py  — added WRITE_IDX_X = N, build_set_X()
-  coordinator  — added async_set_X()
-  number.py    — added HeikoNumberEntity for X
-  sensor.py    — added sensor description for Y
+## Decision guide
 
-Tests: N passed, 0 failed
-
-Ready to package. Run: git add -A && git commit -m "..."
-```
+| Observed value pattern | Likely type | Platform |
+|------------------------|-------------|----------|
+| 0.0 or 1.0 only | Boolean / on-off | switch |
+| Integer 0–5 | Enum / mode | select |
+| Float 20–65 | Temperature setpoint | number |
+| Float varies, not settable | Read-only sensor | sensor |
 
 ## Safety rules
 
-- Never remove existing constants or functions — only add
-- Never change existing write indices that are already confirmed
-- If the pasted data contradicts an existing confirmed index, flag it and ask before changing
-- If a new setdata slot index appears in CMD 0x02 but no corresponding CMD 0x05 was observed, add it as read-only sensor only (not writable) until confirmed
+- **Never remove** existing `WRITE_IDX_*` constants or `build_set_*` functions
+- **Never change** an existing confirmed write index
+- If a discovered index contradicts an existing one — **stop and ask**
+- If the write index formula (`cloud_parN - 1`) doesn't fit a discovery — flag it
+- Mark all new additions with `# Confirmed by traffic capture` comment
+
+## After making changes
+
+Run the integration tests if available:
+```bash
+python3 tests/test_protocol.py
+```
+
+Then print:
+```
+Changes made:
+  protocol.py   — added WRITE_IDX_X = N, build_set_X()
+  coordinator   — added async_set_X()
+  number.py     — added slider for X (range A–B °C)
+  [etc]
+
+Tests: N passed, 0 failed
+
+Commit message suggestion:
+  "Add [parameter] write support (write index N, confirmed by capture)"
+```
