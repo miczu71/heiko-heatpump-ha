@@ -120,5 +120,14 @@ class HeikoNumberEntity(CoordinatorEntity[HeikoCoordinator], NumberEntity):
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        self._optimistic = None
+        # Only clear optimistic state once the coordinator actually has a
+        # confirmed readback value for this entity's key.
+        # For DHW_Setpoint this comes from CMD 0x02 (every ~3 min), not
+        # CMD 0x01 (every 30s), so we must not clear early.
+        if self._read_key and self.coordinator.data:
+            if self.coordinator.data.get(self._read_key) is not None:
+                self._optimistic = None
+        elif not self._read_key:
+            # No readback possible — keep optimistic until next write
+            pass
         self.async_write_ha_state()

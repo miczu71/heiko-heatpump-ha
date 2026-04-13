@@ -106,5 +106,8 @@ class HeikoModeSelectEntity(CoordinatorEntity[HeikoCoordinator], SelectEntity):
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        self._optimistic = None
+        # Clear optimistic only once the live WorkingMode value is populated.
+        # This avoids a brief flicker if the pump takes a cycle to confirm.
+        if self.coordinator.data and self.coordinator.data.get("WorkingMode") is not None:
+            self._optimistic = None
         self.async_write_ha_state()
