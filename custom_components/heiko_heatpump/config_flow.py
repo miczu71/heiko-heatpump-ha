@@ -1,0 +1,100 @@
+"""Config flow for the Heiko Heat Pump integration."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import Any
+
+import voluptuous as vol
+
+from homeassistant import config_entries
+from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.data_entry_flow import FlowResult
+
+from .const import DOMAIN, DEFAULT_HOST, DEFAULT_PORT, CONF_MN
+
+_LOGGER = logging.getLogger(__name__)
+
+STEP_USER_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HOST, default=DEFAULT_HOST): str,
+        vol.Required(CONF_PORT, default=DEFAULT_PORT): int,
+        vol.Required(CONF_MN, default="F4700C77F01A"): str,
+    }
+)
+
+
+def _validate_mn(mn_str: str) -> bytes:
+    """
+    Validate and parse the MN hex string (e.g. "F4700C77F01A") to 6 bytes.
+    Raises ValueError on invalid input.
+    """
+    mn_clean = mn_str.replace(":", "").replace("-", "").replace(" ", "").upper()
+    if len(mn_clean) != 12:
+        raise ValueError(f"MN must be 12 hex characters (6 bytes), got {len(mn_clean)}")
+    return bytes.fromhex(mn_clean)
+
+
+async def _test_connection(host: str, port: int) -> bool:
+    """Attempt a TCP connection to verify the bridge is reachable."""
+    try:
+        _, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port),
+            timeout=5.0,
+        )
+        writer.close()
+        await writer.wait_closed()
+        return True
+    except Exception as exc:
+        _LOGGER.debug("Connection test failed: %s", exc)
+        return False
+
+
+class HeikoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle the UI config flow for Heiko Heat Pump."""
+
+    VERSION = 1
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            host = user_input[CONF_HOST].strip()
+            port = int(user_input[CONF_PORT])
+            mn_str = user_input[CONF_MN].strip()
+
+            # Validate MN format
+            try:
+                mn_bytes = _validate_mn(mn_str)
+            except (ValueError, Exception) as exc:
+                errors[CONF_MN] = "invalid_mn"
+                _LOGGER.debug("Invalid MN %r: %s", mn_str, exc)
+                mn_bytes = None
+
+            if mn_bytes is not None:
+                # Test TCP connectivity
+                can_connect = await _test_connection(host, port)
+                if not can_connect:
+                    errors["base"] = "cannot_connect"
+                else:
+                    # Use MN as the unique ID to prevent duplicate entries
+                    await self.async_set_unique_id(mn_str.upper().replace(":", ""))
+                    self._abort_if_unique_id_configured()
+
+                    return self.async_create_entry(
+                        title=f"Heat Pump {host}",
+                        data={
+                            CONF_HOST: host,
+                            CONF_PORT: port,
+                            CONF_MN:   mn_str.upper().replace(":", ""),
+                        },
+                    )
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=STEP_USER_SCHEMA,
+            errors=errors,
+        )

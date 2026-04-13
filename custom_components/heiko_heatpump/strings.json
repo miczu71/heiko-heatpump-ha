@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Heiko / Neoheat Heat Pump",
+        "description": "Connect to your USR-W600 WiFi-to-RS-485 bridge. All communication stays on your local network — no cloud required.",
+        "data": {
+          "host": "Bridge IP address",
+          "port": "TCP port",
+          "mn": "Unit MN / MAC address (12 hex chars, e.g. F4700C77F01A)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the bridge at the given host and port. Check the IP address, port, and your network.",
+      "invalid_mn": "MN must be exactly 12 hex characters (6 bytes), e.g. F4700C77F01A or F4:70:0C:77:F0:1A."
+    },
+    "abort": {
+      "already_configured": "This heat pump (MN) is already configured."
+    }
+  }
+}
