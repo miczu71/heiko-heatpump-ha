@@ -235,29 +235,21 @@ def parse_frame(raw: bytes) -> Optional[HeatPumpFrame]:
 
     # CRC verification.
     #
-    # We compute CRC-16/Modbus over raw[:payload_end] (full frame including AA 55 header).
-    # The pump consistently produces CRC values that differ from ours by exactly 0x0903
-    # on every received frame — a constant XOR offset. This is characteristic of a fixed
-    # difference in the CRC byte range or initial value.
+    # The pump uses a CRC variant that differs from standard CRC-16/Modbus by
+    # a constant XOR offset of 0x0903. Confirmed from 29+ received frames where
+    # received XOR computed_standard = 0x0903 without exception.
     #
-    # Empirically confirmed from 29 received frames:
-    #   received XOR computed = 0x0903  (constant, not random corruption)
-    #
-    # Our outgoing write frames (CMD 0x05) ARE accepted by the pump without error,
-    # so our CRC generation is correct for frames we send. The discrepancy only
-    # appears on frames the pump sends to us.
-    #
-    # Fix: accept a frame as valid if received CRC matches either our computed value
-    # OR our computed value XOR 0x0903 (the pump's CRC variant).
-    _PUMP_CRC_OFFSET = 0x0903
-    computed_crc = _compute_crc(raw[:payload_end])
-    crc_ok = (recv_crc == computed_crc) or (recv_crc == (computed_crc ^ _PUMP_CRC_OFFSET) & 0xFFFF)
+    # We compute with the pump's variant (standard XOR 0x0903) for both
+    # sending and receiving, so CRCs should now match exactly.
+    # A mismatch indicates genuine frame corruption.
+    computed_crc = (_compute_crc(raw[:payload_end]) ^ _PUMP_CRC_OFFSET) & 0xFFFF
+    crc_ok = (recv_crc == computed_crc)
 
     if not crc_ok:
         _LOGGER.warning(
-            "CRC mismatch: received 0x%04X, computed 0x%04X (offset 0x%04X). "
-            "Frame may be genuinely corrupted.",
-            recv_crc, computed_crc, recv_crc ^ computed_crc
+            "CRC mismatch: received 0x%04X, computed 0x%04X. "
+            "Frame may be corrupted.",
+            recv_crc, computed_crc
         )
 
     return HeatPumpFrame(
@@ -303,6 +295,14 @@ def extract_all_params(payload: bytes) -> dict[str, float]:
 
 
 # ── Frame building ─────────────────────────────────────────────────────────────
+
+# The pump uses a CRC variant that differs from our CRC-16/Modbus by a constant
+# XOR offset of 0x0903 on every frame. Confirmed from 29 received frames where
+# received XOR computed = 0x0903 without exception.
+# We apply the same offset to outgoing frames so the pump accepts them.
+_PUMP_CRC_OFFSET = 0x0903
+
+
 def _build_frame(
     target: int,
     mn: bytes,
@@ -315,13 +315,13 @@ def _build_frame(
 
     Layout:
       AA 55 | target | MN(6) | devID | content_len(2,LE) | command | payload(n) | CRC(2,LE) | 3A
+
+    CRC uses the pump's variant: CRC-16/Modbus XOR 0x0903.
     """
     assert len(mn) == 6, "MN must be exactly 6 bytes"
 
-    # content_len = len(payload) + 1 (the +1 accounts for the command byte)
-    content_len = len(payload) + 1
+    content_len = len(payload) + 1  # +1 for the command byte
 
-    # Build everything except CRC and end byte
     frame_body = (
         FRAME_HEADER
         + bytes([target])
@@ -332,7 +332,8 @@ def _build_frame(
         + payload
     )
 
-    crc = _compute_crc(frame_body)
+    # Apply pump's CRC offset so the pump accepts our frames
+    crc = (_compute_crc(frame_body) ^ _PUMP_CRC_OFFSET) & 0xFFFF
     return frame_body + struct.pack('<H', crc) + bytes([FRAME_END])
 
 
