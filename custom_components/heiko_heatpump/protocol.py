@@ -74,10 +74,10 @@ PARAM_MAP: dict[str, tuple[int, str, str]] = {
     # ── Water / refrigerant circuit  (indices 8–12, cloud par7–11) ───────────
     # Tw (par7): DHW temperature in standby/DHW mode; heating water in heat mode
     "Tw":          ( 8,  "°C",    "Water / DHW temperature (context-dependent)"),
-    "Tc":          ( 9,  "°C",    "Condenser temperature"),
+    "Tc":          ( 9,  "°C",    "Heating water temperature"),
     "Tv1":         (10,  "°C",    "EEV temperature sensor 1 (−99 = not fitted)"),
     "Tv2":         (11,  "°C",    "EEV temperature sensor 2 (−99 = not fitted)"),
-    "Tr":          (12,  "°C",    "Refrigerant temperature"),
+    "Tr":          (12,  "°C",    "Room temperature"),
 
     # ── Index 13 / cloud par12 ────────────────────────────────────────────────
     "PWM":         (13,  "%",     "PWM duty cycle (community table index 13)"),
@@ -108,11 +108,11 @@ PARAM_MAP: dict[str, tuple[int, str, str]] = {
 
     # ── Temperatures  (corrected indices 25–28, cloud par24–27) ──────────────
     # Ta=14.3°C confirmed ambient (cloud par24, corrected idx 25)
-    # Td/Ts/Tp: unknown ~20°C / ~20°C / ~14°C in standby
+    # Td/Ts/Tp: confirmed names from user
     "Ta":          (25,  "°C",    "Ambient air temperature"),
-    "Td":          (26,  "°C",    "Temperature par25 (meaning unconfirmed)"),
-    "Ts":          (27,  "°C",    "Temperature par26 (meaning unconfirmed)"),
-    "Tp":          (28,  "°C",    "Temperature par27 (meaning unconfirmed)"),
+    "Td":          (26,  "°C",    "Discharge temperature Td"),
+    "Ts":          (27,  "°C",    "Suction temperature Ts"),
+    "Tp":          (28,  "°C",    "Pipe temperature Tp"),
 
     # ── Electrical  (corrected indices 31–32, cloud par30–31) ────────────────
     # par30=0.1A standby / 6.2A heating (confirmed live)

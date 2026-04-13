@@ -22,6 +22,7 @@ from homeassistant.const import (
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfFrequency,
+    UnitOfPower,
     UnitOfPressure,
     UnitOfTemperature,
 )
@@ -83,7 +84,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
     ),
     HeikoSensorEntityDescription(
         key="Tc",
-        name="Condenser Temperature",
+        name="Heating Water Temperature",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -107,7 +108,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
     ),
     HeikoSensorEntityDescription(
         key="Tr",
-        name="Refrigerant Temperature",
+        name="Room Temperature",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -125,7 +126,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
     ),
     HeikoSensorEntityDescription(
         key="Td",
-        name="Temperature par25",
+        name="Discharge Temperature Td",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -133,7 +134,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
     ),
     HeikoSensorEntityDescription(
         key="Ts",
-        name="Temperature par26",
+        name="Suction Temperature Ts",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -141,7 +142,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
     ),
     HeikoSensorEntityDescription(
         key="Tp",
-        name="Temperature par27",
+        name="Pipe Temperature Tp",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -225,28 +226,50 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
     ),
 
     # ── State sensors ─────────────────────────────────────────────────────────
-    # WorkingMode: index 20, par18=0 in standby.
-    # Values: 0=Standby, 1=DHW, 2=Heating, 3=Cooling, 4=DHW+Heating, 5=DHW+Cooling
+    # WorkingMode: index 19 (corrected), par18.
+    # Values: 0=Standby, 1=Sanitary Hot Water, 2=Heating, 3=Cooling,
+    #         4=Sanitary Hot Water+Heating, 5=Sanitary Hot Water+Cooling
     HeikoSensorEntityDescription(
         key="WorkingMode",
         name="Working Mode",
         state_class=SensorStateClass.MEASUREMENT,
         precision=0,
     ),
-    # WaterPump: index 35, par33=1.0 (pump running in standby to maintain DHW)
+    # WaterPump: index 34, par33. Rendered as "on"/"off" by HeikoWaterPumpEntity below.
     HeikoSensorEntityDescription(
         key="WaterPump",
-        name="Water Pump State",
+        name="Water Pump",
         state_class=SensorStateClass.MEASUREMENT,
         precision=0,
     ),
-    # PWM: index 13, par12=25.0 — labelled PWM by community table
+    # PWM: index 13, par12
     HeikoSensorEntityDescription(
         key="PWM",
         name="PWM",
         native_unit_of_measurement="%",
         state_class=SensorStateClass.MEASUREMENT,
         precision=1,
+    ),
+
+    # ── Calculated / derived sensors ──────────────────────────────────────────
+    # DeltaT: Tuo − Tui (outdoor outlet minus inlet).
+    # In heating mode: positive value = heat extracted from outdoor air.
+    HeikoSensorEntityDescription(
+        key="DeltaT",
+        name="Outdoor Unit Delta T",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        precision=2,
+    ),
+    # Power: Voltage × Current = apparent electrical input power.
+    HeikoSensorEntityDescription(
+        key="Power",
+        name="Electrical Power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        precision=0,
     ),
 
     # ── Working-time counters ─────────────────────────────────────────────────
@@ -283,15 +306,18 @@ async def async_setup_entry(
     coordinator: HeikoCoordinator = hass.data[DOMAIN][entry.entry_id]
     mn_str = entry.data["mn"]
 
-    entities = [
+    entities: list = [
         HeikoSensorEntity(coordinator, description, mn_str)
         for description in SENSOR_DESCRIPTIONS
     ]
+    # Specialised text-value entities
+    entities.append(HeikoWaterPumpEntity(coordinator, mn_str))
+    entities.append(HeikoWorkingModeTextEntity(coordinator, mn_str))
     async_add_entities(entities)
 
 
 class HeikoSensorEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
-    """A single sensor entity backed by the Heiko coordinator."""
+    """A single numeric sensor entity backed by the Heiko coordinator."""
 
     entity_description: HeikoSensorEntityDescription
 
@@ -319,10 +345,93 @@ class HeikoSensorEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
         raw = self.coordinator.data.get(self.entity_description.key)
         if raw is None:
             return None
-        # Round to configured precision
         return round(raw, self.entity_description.precision)
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from coordinator (called on push frames too)."""
         self.async_write_ha_state()
+
+
+class HeikoWaterPumpEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
+    """
+    Water pump state rendered as human-readable text: 'on' or 'off'.
+    Raw value from protocol: 1.0 = on, 0.0 = off.
+    """
+
+    _attr_name = "Water Pump"
+    _attr_icon = "mdi:pump"
+
+    def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{mn_str}_WaterPump_text"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, mn_str)},
+            name="Heiko Heat Pump",
+            manufacturer=MANUFACTURER,
+            model=MODEL,
+        )
+
+    @property
+    def native_value(self) -> Optional[str]:
+        if self.coordinator.data is None:
+            return None
+        raw = self.coordinator.data.get("WaterPump")
+        if raw is None:
+            return None
+        return "on" if raw >= 0.5 else "off"
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
+
+
+_WORKING_MODE_NAMES: dict[int, str] = {
+    0: "Standby",
+    1: "Sanitary Hot Water",
+    2: "Heating",
+    3: "Cooling",
+    4: "Sanitary Hot Water+Heating",
+    5: "Sanitary Hot Water+Cooling",
+}
+
+
+class HeikoWorkingModeTextEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
+    """
+    Working mode rendered as human-readable text matching the cloud UI labels.
+    Raw value from protocol (index 19, par18): 0–5.
+    """
+
+    _attr_name = "Working Mode"
+    _attr_icon = "mdi:cog-transfer"
+
+    def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{mn_str}_WorkingMode_text"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, mn_str)},
+            name="Heiko Heat Pump",
+            manufacturer=MANUFACTURER,
+            model=MODEL,
+        )
+
+    @property
+    def native_value(self) -> Optional[str]:
+        if self.coordinator.data is None:
+            return None
+        raw = self.coordinator.data.get("WorkingMode")
+        if raw is None:
+            return None
+        return _WORKING_MODE_NAMES.get(int(round(raw)), f"Unknown ({int(round(raw))})")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        if self.coordinator.data is None:
+            return {}
+        raw = self.coordinator.data.get("WorkingMode")
+        return {"raw_value": raw} if raw is not None else {}
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
+

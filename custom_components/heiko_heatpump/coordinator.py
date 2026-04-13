@@ -115,6 +115,37 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
             _LOGGER.warning("CMD 0x01 frame yielded no parameters (payload too short?)")
             return
 
+        # ── Calculated / derived sensors ──────────────────────────────────────
+        # DeltaT: outdoor unit outlet − inlet (Tuo − Tui).
+        # Positive in heating mode (outlet warmer than inlet because the
+        # refrigerant absorbs heat from the outdoor air).
+        tuo = params.get("Tuo")
+        tui = params.get("Tui")
+        if tuo is not None and tui is not None:
+            params["DeltaT"] = round(tuo - tui, 2)
+
+        # Power (W): apparent electrical input = Voltage × Current.
+        # This is VA not true Watts (no power-factor correction), but for a
+        # compressor load it is a reasonable approximation.
+        voltage = params.get("Voltage")
+        current = params.get("Current")
+        if voltage is not None and current is not None:
+            params["Power"] = round(voltage * current, 1)
+
+        # COP estimate: not calculable without water-side flow rate.
+        # Placeholder: if flow rate (L/s) and specific heat of water (4186 J/kg·K)
+        # were known we could do: COP = (flow × 4186 × ΔT_water) / Power_W
+        # For now we expose a "COPe" that uses outdoor ΔT as a proxy — useful
+        # for relative comparison but NOT a true COP.
+        delta_t = params.get("DeltaT")
+        power = params.get("Power")
+        if delta_t is not None and power is not None and power > 10:
+            # Rough proxy: higher outdoor ΔT relative to power = more efficient
+            # True COP needs: mass_flow_rate × Cp × ΔT_water / electrical_power
+            # We set COPe = None; users who know their flow rate can make a
+            # template sensor. Leaving hook in data dict for future.
+            pass  # params["COPe"] = ...
+
         _LOGGER.debug("Received realtime data: %s", params)
         self._latest_data = params
 
