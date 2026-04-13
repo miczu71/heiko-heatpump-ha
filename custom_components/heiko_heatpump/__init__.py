@@ -17,7 +17,7 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, CONF_HOST, CONF_PORT, CONF_MN
+from .const import DOMAIN, CONF_HOST, CONF_PORT, CONF_MN, CONF_FLOW_RATE, DEFAULT_FLOW_RATE
 from .coordinator import HeikoCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -27,14 +27,15 @@ PLATFORMS = ["sensor", "switch", "climate"]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Heiko Heat Pump from a config entry."""
-    host   = entry.data[CONF_HOST]
-    port   = int(entry.data[CONF_PORT])
-    mn_str = entry.data[CONF_MN]
+    host      = entry.data[CONF_HOST]
+    port      = int(entry.data[CONF_PORT])
+    mn_str    = entry.data[CONF_MN]
+    flow_rate = float(entry.data.get(CONF_FLOW_RATE, DEFAULT_FLOW_RATE))
 
     # Parse MN hex string → 6 bytes
     mn = bytes.fromhex(mn_str)
 
-    coordinator = HeikoCoordinator(hass, host, port, mn)
+    coordinator = HeikoCoordinator(hass, host, port, mn, flow_rate_lps=flow_rate)
 
     # Store coordinator for platforms to access
     hass.data.setdefault(DOMAIN, {})

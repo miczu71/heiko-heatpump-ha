@@ -76,7 +76,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
     # ── Water / refrigerant circuit ───────────────────────────────────────────
     HeikoSensorEntityDescription(
         key="Tw",
-        name="Water / DHW Temperature",
+        name="Hot Water / DHW Temperature",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -84,7 +84,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
     ),
     HeikoSensorEntityDescription(
         key="Tc",
-        name="Heating Water Temperature",
+        name="Heating Circuit Return Temperature",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -142,13 +142,13 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
     ),
     HeikoSensorEntityDescription(
         key="Tp",
-        name="Pipe Temperature Tp",
+        name="Liquid Line Temperature Tp",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         precision=1,
     ),
-    # Heating setpoint: index 38, cloud par36=22.0°C (floor/radiator circuit target)
+    # Heating setpoint: index 37, cloud par36 (floor/radiator circuit target)
     HeikoSensorEntityDescription(
         key="Setpoint",
         name="Heating Water Setpoint",
@@ -226,9 +226,8 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
     ),
 
     # ── State sensors ─────────────────────────────────────────────────────────
-    # WorkingMode: index 19 (corrected), par18.
-    # Values: 0=Standby, 1=Sanitary Hot Water, 2=Heating, 3=Cooling,
-    #         4=Sanitary Hot Water+Heating, 5=Sanitary Hot Water+Cooling
+    # WorkingMode: index 2, cloud par1 (Unit Current Working Mode)
+    # Values: 0=Standby, 1=DHW, 2=Heating, 3=Cooling, 4=DHW+Heating, 5=DHW+Cooling
     HeikoSensorEntityDescription(
         key="WorkingMode",
         name="Working Mode",
@@ -252,8 +251,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
     ),
 
     # ── Calculated / derived sensors ──────────────────────────────────────────
-    # DeltaT: Tuo − Tui (outdoor outlet minus inlet).
-    # In heating mode: positive value = heat extracted from outdoor air.
+    # Outdoor ΔT: Tuo − Tui (heat extracted from outdoor air)
     HeikoSensorEntityDescription(
         key="DeltaT",
         name="Outdoor Unit Delta T",
@@ -262,7 +260,16 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         precision=2,
     ),
-    # Power: Voltage × Current = apparent electrical input power.
+    # Water circuit ΔT: Tw − Tc (hot outlet minus floor heating return)
+    HeikoSensorEntityDescription(
+        key="DeltaT_water",
+        name="Water Circuit Delta T",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        precision=2,
+    ),
+    # Electrical input power: V × I (apparent; true watts slightly lower due to PF)
     HeikoSensorEntityDescription(
         key="Power",
         name="Electrical Power",
@@ -270,6 +277,31 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         precision=0,
+    ),
+    # Thermal output power: flow × 4186 × (Setpoint − Tc)
+    # Only shown when compressor is running (Frequency > 5 Hz)
+    HeikoSensorEntityDescription(
+        key="Thermal_power",
+        name="Thermal Output Power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        precision=0,
+    ),
+    # COP Carnot: Tw_K / (Tw_K − Ta_K) — theoretical upper bound, always available
+    HeikoSensorEntityDescription(
+        key="COP_carnot",
+        name="COP Carnot",
+        state_class=SensorStateClass.MEASUREMENT,
+        precision=2,
+    ),
+    # COP estimated: Q_thermal / P_electrical — only when compressor running
+    # Uses configured flow rate (default 0.29 L/s for Eko II 6)
+    HeikoSensorEntityDescription(
+        key="COP_estimated",
+        name="COP Estimated",
+        state_class=SensorStateClass.MEASUREMENT,
+        precision=2,
     ),
 
     # ── Working-time counters ─────────────────────────────────────────────────

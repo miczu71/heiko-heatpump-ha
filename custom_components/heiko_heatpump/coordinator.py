@@ -19,7 +19,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN
+from .const import DOMAIN, DEFAULT_FLOW_RATE
 from .protocol import (
     HeatPumpFrame,
     CMD_REALTIME,
@@ -49,6 +49,7 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         host: str,
         port: int,
         mn: bytes,
+        flow_rate_lps: float = DEFAULT_FLOW_RATE,
     ) -> None:
         super().__init__(
             hass,
@@ -56,8 +57,9 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
             name=DOMAIN,
             update_interval=POLL_INTERVAL,
         )
-        self._mn     = mn   # 6-byte unit identifier (from config flow)
-        self._client = HeikoTCPClient(host, port, self._on_frame)
+        self._mn            = mn
+        self._flow_rate_lps = flow_rate_lps   # L/s, from config
+        self._client        = HeikoTCPClient(host, port, self._on_frame)
         self._latest_data: dict[str, float] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -116,35 +118,67 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
             return
 
         # ── Calculated / derived sensors ──────────────────────────────────────
-        # DeltaT: outdoor unit outlet − inlet (Tuo − Tui).
-        # Positive in heating mode (outlet warmer than inlet because the
-        # refrigerant absorbs heat from the outdoor air).
+        # DeltaT_outdoor: Tuo − Tui (outdoor unit outlet minus inlet).
+        # Positive in heating mode — the refrigerant extracted this heat from outdoor air.
         tuo = params.get("Tuo")
         tui = params.get("Tui")
         if tuo is not None and tui is not None:
             params["DeltaT"] = round(tuo - tui, 2)
 
-        # Power (W): apparent electrical input = Voltage × Current.
-        # This is VA not true Watts (no power-factor correction), but for a
-        # compressor load it is a reasonable approximation.
+        # Power (W): Voltage × Current = apparent electrical input power.
+        # Note: true power = V × I × power_factor. PF ≈ 0.85 for compressor loads
+        # but we have no PF sensor, so this is VA (will read ~15% high).
         voltage = params.get("Voltage")
         current = params.get("Current")
+        power_w: float | None = None
         if voltage is not None and current is not None:
-            params["Power"] = round(voltage * current, 1)
+            power_w = round(voltage * current, 1)
+            params["Power"] = power_w
 
-        # COP estimate: not calculable without water-side flow rate.
-        # Placeholder: if flow rate (L/s) and specific heat of water (4186 J/kg·K)
-        # were known we could do: COP = (flow × 4186 × ΔT_water) / Power_W
-        # For now we expose a "COPe" that uses outdoor ΔT as a proxy — useful
-        # for relative comparison but NOT a true COP.
-        delta_t = params.get("DeltaT")
-        power = params.get("Power")
-        if delta_t is not None and power is not None and power > 10:
-            # Rough proxy: higher outdoor ΔT relative to power = more efficient
-            # True COP needs: mass_flow_rate × Cp × ΔT_water / electrical_power
-            # We set COPe = None; users who know their flow rate can make a
-            # template sensor. Leaving hook in data dict for future.
-            pass  # params["COPe"] = ...
+        # DeltaT_water: Tw − Tc (hot water outlet minus heating circuit return).
+        # Tw = hot water / DHW outlet from heat exchanger.
+        # Tc = floor heating return temperature (cold water coming back).
+        # Large ΔT = pump is lifting water temperature a lot across the HX.
+        tw = params.get("Tw")
+        tc = params.get("Tc")
+        if tw is not None and tc is not None:
+            params["DeltaT_water"] = round(tw - tc, 2)
+
+        # COP_carnot: theoretical maximum COP (Carnot efficiency).
+        # COP_carnot = T_hot_K / (T_hot_K − T_cold_K)
+        # Uses Tw (hot water outlet) as T_hot and Ta (ambient) as T_cold.
+        # Real heat pumps achieve 40–55% of Carnot COP.
+        ta = params.get("Ta")
+        if tw is not None and ta is not None:
+            tw_k = tw + 273.15
+            ta_k = ta + 273.15
+            denom = tw_k - ta_k
+            if denom > 0.1:  # avoid division by near-zero
+                params["COP_carnot"] = round(tw_k / denom, 2)
+
+        # COP_estimated: calculated from thermal output / electrical input.
+        # Formula: Q_thermal = flow_rate(L/s) × 4186(J/kg·K) × ΔT_floor(°C)
+        #          ΔT_floor  = Setpoint − Tc  (target supply minus actual return)
+        #          COP       = Q_thermal / Power_electrical
+        #
+        # Uses:
+        #   flow_rate = configured value (default 0.29 L/s for Eko II 6)
+        #   Setpoint  = heating circuit target temperature (par36, idx 37)
+        #   Tc        = heating circuit return temperature (par8, idx 9)
+        #   Power     = Voltage × Current (apparent power in VA)
+        #
+        # Only computed when compressor is running (Frequency > 0) and
+        # power is meaningful (> 50 W) to avoid nonsense values in standby.
+        setpoint = params.get("Setpoint")
+        frequency = params.get("Frequency")
+        if (tc is not None and setpoint is not None and power_w is not None
+                and frequency is not None and frequency > 5.0 and power_w > 50.0):
+            dt_floor = setpoint - tc
+            if dt_floor > 0.1:  # only when supply is genuinely warmer than return
+                q_thermal = self._flow_rate_lps * 4186.0 * dt_floor
+                params["COP_estimated"] = round(q_thermal / power_w, 2)
+                params["Thermal_power"] = round(q_thermal, 1)
+
 
         _LOGGER.debug("Received realtime data: %s", params)
         self._latest_data = params

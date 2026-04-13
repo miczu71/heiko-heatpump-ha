@@ -7,7 +7,8 @@
         "data": {
           "host": "Bridge IP address",
           "port": "TCP port",
-          "mn": "Unit MN / MAC address (12 hex chars, e.g. F4700C77F01A)"
+          "mn": "Unit MN / MAC address (12 hex chars, e.g. F4700C77F01A)",
+          "flow_rate_lps": "Water flow rate (L/s) — from manual: Eko II 6=0.29, 9=0.43, 12=0.57, 15=0.714, 19=0.92"
         }
       }
     },

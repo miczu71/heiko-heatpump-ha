@@ -12,7 +12,7 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.data_entry_flow import FlowResult
 
-from .const import DOMAIN, DEFAULT_HOST, DEFAULT_PORT, CONF_MN
+from .const import DOMAIN, DEFAULT_HOST, DEFAULT_PORT, CONF_MN, CONF_FLOW_RATE, DEFAULT_FLOW_RATE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ STEP_USER_SCHEMA = vol.Schema(
         vol.Required(CONF_HOST, default=DEFAULT_HOST): str,
         vol.Required(CONF_PORT, default=DEFAULT_PORT): int,
         vol.Required(CONF_MN, default="F4700C77F01A"): str,
+        vol.Required(CONF_FLOW_RATE, default=DEFAULT_FLOW_RATE): vol.Coerce(float),
     }
 )
 
@@ -90,6 +91,7 @@ class HeikoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             CONF_HOST: host,
                             CONF_PORT: port,
                             CONF_MN:   mn_str.upper().replace(":", ""),
+                            CONF_FLOW_RATE: float(user_input[CONF_FLOW_RATE]),
                         },
                     )
 

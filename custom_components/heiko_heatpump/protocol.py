@@ -73,8 +73,8 @@ PARAM_MAP: dict[str, tuple[int, str, str]] = {
 
     # ── Water / refrigerant circuit  (indices 8–12, cloud par7–11) ───────────
     # Tw (par7): DHW temperature in standby/DHW mode; heating water in heat mode
-    "Tw":          ( 8,  "°C",    "Water / DHW temperature (context-dependent)"),
-    "Tc":          ( 9,  "°C",    "Heating water temperature"),
+    "Tw":          ( 8,  "°C",    "Hot water / DHW temperature (heat pump outlet or tank)"),
+    "Tc":          ( 9,  "°C",    "Heating circuit return temperature (floor/radiator return)"),
     "Tv1":         (10,  "°C",    "EEV temperature sensor 1 (−99 = not fitted)"),
     "Tv2":         (11,  "°C",    "EEV temperature sensor 2 (−99 = not fitted)"),
     "Tr":          (12,  "°C",    "Room temperature"),
@@ -114,7 +114,7 @@ PARAM_MAP: dict[str, tuple[int, str, str]] = {
     "Ta":          (25,  "°C",    "Ambient air temperature"),
     "Td":          (26,  "°C",    "Discharge temperature Td"),
     "Ts":          (27,  "°C",    "Suction temperature Ts"),
-    "Tp":          (28,  "°C",    "Pipe temperature Tp"),
+    "Tp":          (28,  "°C",    "Liquid line temperature Tp"),
 
     # ── Electrical  (corrected indices 31–32, cloud par30–31) ────────────────
     # par30=0.1A standby / 6.2A heating (confirmed live)
