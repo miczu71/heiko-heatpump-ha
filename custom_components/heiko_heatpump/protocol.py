@@ -88,10 +88,12 @@ PARAM_MAP: dict[str, tuple[int, str, str]] = {
     # slot is 21.  Every entry from here uses the corrected (table − 1) value.
     # ══════════════════════════════════════════════════════════════════════════
 
-    # ── Working mode  (corrected index 19, cloud par18) ───────────────────────
-    # par18=0 in standby, 2 in heating (confirmed live).
+    # ── Working mode  (index 2, cloud par1) ────────────────────────────────────
+    # par1 is "Unit Current Working Mode" in the cloud API.
+    # Confirmed: idx 2 = 1.0 in the original example frame (pump was in DHW mode).
+    # par1=0 in standby, 1=DHW, 2=Heating (confirmed live by user).
     # Values: 0=Standby, 1=DHW, 2=Heating, 3=Cooling, 4=DHW+Heating, 5=DHW+Cooling
-    "WorkingMode": (19,  "",      "Working mode: 0=Standby 1=DHW 2=Heat 3=Cool 4=DHW+Heat 5=DHW+Cool"),
+    "WorkingMode": ( 2,  "",      "Working mode: 0=Standby 1=DHW 2=Heating 3=Cooling 4=DHW+Heating 5=DHW+Cooling (cloud par1)"),
 
     # ── Compressor & fans  (corrected indices 21–30, cloud par20–29) ──────────
     # par20=0Hz standby / 90Hz heating (confirmed live)
