@@ -22,7 +22,7 @@ from .coordinator import HeikoCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["sensor", "switch", "climate"]
+PLATFORMS = ["sensor", "switch", "climate", "number", "select"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

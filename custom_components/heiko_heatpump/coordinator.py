@@ -23,10 +23,13 @@ from .const import DOMAIN, DEFAULT_FLOW_RATE
 from .protocol import (
     HeatPumpFrame,
     CMD_REALTIME,
+    MODE_STANDBY, MODE_HEATING, MODE_COOLING, MODE_DHW, MODE_AUTO,
     build_ack_realtime,
     build_request_realtime,
-    build_set_setpoint,
     build_set_power,
+    build_set_mode,
+    build_set_setpoint,
+    build_set_dhw_setpoint,
     extract_all_params,
 )
 from .tcp_client import HeikoTCPClient
@@ -190,26 +193,34 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         ack = build_ack_realtime(frame.mn)
         await self._client.send(ack)
 
-    # ── Write commands ────────────────────────────────────────────────────────
-
-    async def async_set_setpoint(self, setpoint_celsius: float) -> None:
-        """
-        Write a new target water temperature setpoint to the heat pump.
-        Param index 38, value is a float in °C.
-        """
-        frame_bytes = build_set_setpoint(self._mn, setpoint_celsius)
-        ok = await self._client.send(frame_bytes)
-        if not ok:
-            raise RuntimeError("Failed to send setpoint command to heat pump")
-        _LOGGER.info("Setpoint → %.1f °C", setpoint_celsius)
+    # ── Write commands (all indices verified by CMD 0x05 traffic capture) ────
 
     async def async_set_power(self, on: bool) -> None:
+        """Turn pump on/off. Write index 0: 1.0=on, 0.0=off."""
+        await self._send_write(build_set_power(self._mn, on),
+                               f"Power → {'ON' if on else 'OFF'}")
+
+    async def async_set_mode(self, mode: int) -> None:
         """
-        Turn the heat pump on or off.
-        Param index 39, value 1.0 = on, 0.0 = off.
+        Set working mode. Write index 3.
+        Use MODE_* constants: MODE_HEATING=1, MODE_DHW=3, MODE_AUTO=4, MODE_STANDBY=0.
         """
-        frame_bytes = build_set_power(self._mn, on)
+        await self._send_write(build_set_mode(self._mn, mode),
+                               f"Mode → {mode}")
+
+    async def async_set_setpoint(self, setpoint_celsius: float) -> None:
+        """Set heating circuit water setpoint. Write index 37."""
+        await self._send_write(build_set_setpoint(self._mn, setpoint_celsius),
+                               f"Heating setpoint → {setpoint_celsius:.1f}°C")
+
+    async def async_set_dhw_setpoint(self, setpoint_celsius: float) -> None:
+        """Set DHW (hot water) target temperature. Write index 54."""
+        await self._send_write(build_set_dhw_setpoint(self._mn, setpoint_celsius),
+                               f"DHW setpoint → {setpoint_celsius:.1f}°C")
+
+    async def _send_write(self, frame_bytes: bytes, description: str) -> None:
+        """Send a CMD 0x05 write frame and log it."""
         ok = await self._client.send(frame_bytes)
         if not ok:
-            raise RuntimeError("Failed to send power command to heat pump")
-        _LOGGER.info("Power → %s", "ON" if on else "OFF")
+            raise RuntimeError(f"Failed to send write command: {description}")
+        _LOGGER.info("Write: %s", description)

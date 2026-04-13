@@ -381,18 +381,56 @@ def build_write_param(
     )
 
 
-def build_set_setpoint(mn: bytes, setpoint_celsius: float, **kwargs) -> bytes:
-    """Convenience wrapper: set heating water setpoint (param index 37, community table index 38)."""
-    return build_write_param(mn, PARAM_MAP["Setpoint"][0], setpoint_celsius, **kwargs)
+# ── Verified write indices (confirmed by CMD 0x05 traffic capture) ───────────
+# Formula: write_index = cloud_setdata_parN - 1  (consistent with realdata)
+#   Power    → index 0  (setdata par1:  1=on, 0=off)
+#   Mode     → index 3  (setdata par4:  1=Heating, 2=Cooling, 3=DHW, 4=Auto, 0=Standby)
+#   Heating  → index 37 (setdata par38: °C, confirmed ✓)
+#   DHW      → index 54 (setdata par55: °C)
+
+WRITE_IDX_POWER   = 0
+WRITE_IDX_MODE    = 3
+WRITE_IDX_HEATING = 37   # same as PARAM_MAP["Setpoint"][0]
+WRITE_IDX_DHW     = 54
+
+# Working mode values (confirmed from traffic capture)
+MODE_STANDBY  = 0   # likely — power-off state
+MODE_HEATING  = 1   # confirmed ✓
+MODE_COOLING  = 2   # logical extension (unconfirmed)
+MODE_DHW      = 3   # confirmed ✓
+MODE_AUTO     = 4   # confirmed ✓
 
 
 def build_set_power(mn: bytes, on: bool, **kwargs) -> bytes:
     """
-    Convenience wrapper: turn heat pump on (True) or off (False).
-    Writes to param index 39 (community table 'Sw', one above Setpoint at 38).
-    ⚠ Verify this index by monitoring raw CMD 0x05 traffic from the cloud app.
+    Turn heat pump on (True) or off (False).
+    Write index 0, value 1.0 (on) or 0.0 (off). Confirmed by traffic capture.
     """
-    return build_write_param(mn, 39, 1.0 if on else 0.0, **kwargs)
+    return build_write_param(mn, WRITE_IDX_POWER, 1.0 if on else 0.0, **kwargs)
+
+
+def build_set_mode(mn: bytes, mode: int, **kwargs) -> bytes:
+    """
+    Set working mode. Write index 3. Confirmed values:
+      0=Standby (likely), 1=Heating, 2=Cooling (likely), 3=DHW, 4=Auto
+    Use the MODE_* constants above.
+    """
+    return build_write_param(mn, WRITE_IDX_MODE, float(mode), **kwargs)
+
+
+def build_set_setpoint(mn: bytes, setpoint_celsius: float, **kwargs) -> bytes:
+    """
+    Set heating water circuit setpoint. Write index 37. Confirmed by traffic capture.
+    """
+    return build_write_param(mn, WRITE_IDX_HEATING, setpoint_celsius, **kwargs)
+
+
+def build_set_dhw_setpoint(mn: bytes, setpoint_celsius: float, **kwargs) -> bytes:
+    """
+    Set DHW (sanitary hot water) target temperature. Write index 54.
+    Confirmed by traffic capture. Typical range 40–60°C.
+    """
+    return build_write_param(mn, WRITE_IDX_DHW, setpoint_celsius, **kwargs)
 
 
 # ── Frame stream parser ────────────────────────────────────────────────────────
