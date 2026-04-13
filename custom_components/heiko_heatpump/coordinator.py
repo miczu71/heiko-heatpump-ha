@@ -61,8 +61,9 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
             name=DOMAIN,
             update_interval=POLL_INTERVAL,
         )
-        self._mn            = mn
-        self._flow_rate_lps = flow_rate_lps   # L/s, from config
+        self._mn_config     = mn              # MN from config (WiFi module MAC)
+        self._mn            = mn              # active MN used for writes — updated on first frame
+        self._flow_rate_lps = flow_rate_lps
         self._client        = HeikoTCPClient(host, port, self._on_frame)
         self._latest_data: dict[str, float] = {}
 
@@ -119,10 +120,13 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
     async def _handle_setdata(self, frame: HeatPumpFrame) -> None:
         """
         Process CMD 0x02 setdata frame (sent by pump every ~3 minutes).
-        Extracts the DHW setpoint (write index 54 = setdata payload index 54)
-        and merges it into the live data dict so the number entity can show
-        the current value even before the user changes it.
+        Learns the pump's MN and extracts the DHW setpoint (write index 54).
         """
+        if frame.mn != self._mn:
+            self._mn = frame.mn
+
+        # Extracts the DHW setpoint and merges it into the live data dict
+        # so the number entity shows the current value before the user changes it.
         if len(frame.payload) < 2 + 54 * 4 + 4:
             _LOGGER.debug("CMD 0x02 payload too short for DHW setpoint (%d bytes)", len(frame.payload))
             return
@@ -138,6 +142,17 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
 
     async def _handle_realtime(self, frame: HeatPumpFrame) -> None:
         """Process a CMD 0x01 realtime data frame."""
+
+        # Learn the pump's actual MN from its own frames.
+        # The config MN is the WiFi module's MAC; the pump's MN in its frames
+        # is what we must use in CMD 0x05 write commands.
+        if frame.mn != self._mn:
+            _LOGGER.info(
+                "Updating write MN from config (%s) to pump MN (%s)",
+                self._mn.hex(':'), frame.mn.hex(':'),
+            )
+            self._mn = frame.mn
+
         params = extract_all_params(frame.payload)
 
         if not params:
