@@ -10,7 +10,7 @@ CONF_FLOW_RATE = "flow_rate_lps"  # water flow rate in L/s (for COP calculation)
 
 # Default connection parameters
 DEFAULT_PORT      = 8899
-DEFAULT_HOST      = "192.168.0.82"
+DEFAULT_HOST      = ""
 
 # Default flow rate: Neoheat Eko II 6 nominal = 0.29 L/s (from manual)
 # Eko II 6=0.29, Eko II 9=0.43, Eko II 12=0.57, Eko II 15=0.714, Eko II 19=0.92
