@@ -192,11 +192,10 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
             if denom > 0.1:
                 params["COP_carnot"] = round(tw_k / denom, 2)
 
-        setpoint = params.get("Setpoint")
         frequency = params.get("Frequency")
-        if (tc is not None and setpoint is not None and power_w is not None
+        if (tw is not None and tc is not None and power_w is not None
                 and frequency is not None and frequency > 5.0 and power_w > 50.0):
-            dt_floor = setpoint - tc
+            dt_floor = tw - tc
             if dt_floor > 0.1:
                 q_thermal = self._flow_rate_lps * 4186.0 * dt_floor
                 params["COP_estimated"] = round(q_thermal / power_w, 2)
