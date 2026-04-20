@@ -171,8 +171,8 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
             changed = True
             _LOGGER.debug("CMD 0x02: HeatingCurve = %.0f", v)
 
-        # HBH backup heater — idx 48: inverted (0.0=enabled, 1.0=disabled)
-        v = _read_float(48)
+        # HBH backup heater — idx 50: inverted (0.0=enabled, 1.0=disabled)
+        v = _read_float(50)
         if v is not None:
             self._latest_data["HBH_State"] = float(round(v))
             changed = True

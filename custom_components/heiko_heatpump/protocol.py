@@ -447,7 +447,7 @@ def build_write_param(
 WRITE_IDX_POWER         = 0    # 0.0=off, 1.0=on  (confirmed MITM)
 WRITE_IDX_MODE          = 3    # 0=standby,1=heating,2=cooling,3=DHW,4=auto
 WRITE_IDX_HEATING_CURVE = 23   # 0.0=off, 1.0=on  (confirmed MITM)
-WRITE_IDX_HBH           = 48   # backup heater: 0.0=enabled, 1.0=disabled (inverted, confirmed MITM)
+WRITE_IDX_HBH           = 50   # backup heater: 0.0=enabled, 1.0=disabled (inverted, confirmed MITM idx=0x32)
 WRITE_IDX_HEATING       = 37   # °C  (confirmed MITM)
 WRITE_IDX_DHW           = 54   # °C  (confirmed MITM)
 WRITE_IDX_DHW_STORAGE   = 62   # DHW storage: 0.0=off, 1.0=on  (confirmed MITM)
