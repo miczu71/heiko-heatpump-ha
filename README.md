@@ -50,7 +50,7 @@ Should also work with Neoheat and ECOtouch models using the same USR-W600 bridge
 |-------|---------|-------------|
 | Bridge IP | `192.168.1.100` | IP address of your USR-W600 |
 | Port | `8899` | TCP port (W600 SocketA default) |
-| MN | `F4700C77F01A` | Unit identifier — the W600's WiFi MAC address (no colons), found on the W600 label or in its web UI under **Device Info → MAC** |
+| MN | `A1B2C3D4E5F6` | Unit identifier — the W600's WiFi MAC address (no colons), found on the W600 label or in its web UI under **Device Info → MAC** |
 
 The MN is used to address CMD 0x05 write frames. The integration also learns the pump's own MN from its first CMD 0x01 frame and uses that for subsequent writes.
 

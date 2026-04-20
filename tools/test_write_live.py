@@ -8,9 +8,9 @@ CMD 0x02 SETDATA from the pump and reports whether the target field
 took the new value.
 
 Usage:
-  python3 test_write_live.py --host 192.168.1.100 --mn F4700C77F01A dhw 49
-  python3 test_write_live.py --host 192.168.1.100 --mn F4700C77F01A power 1
-  python3 test_write_live.py --host 192.168.1.100 --mn F4700C77F01A mode 3
+  python3 test_write_live.py --host 192.168.1.100 --mn A1B2C3D4E5F6 dhw 49
+  python3 test_write_live.py --host 192.168.1.100 --mn A1B2C3D4E5F6 power 1
+  python3 test_write_live.py --host 192.168.1.100 --mn A1B2C3D4E5F6 mode 3
 
 Caveats:
 - This connects as a second SocketA client to the W600. If the W600 is
@@ -55,7 +55,7 @@ def main() -> int:
     ap.add_argument("value", type=float)
     ap.add_argument("--host", required=True, help="W600 bridge IP address (e.g. 192.168.1.100)")
     ap.add_argument("--mn", required=True,
-                    help="Unit MN as 12 hex chars (e.g. F4700C77F01A) — shown on W600 label or HA device info")
+                    help="Unit MN as 12 hex chars (e.g. A1B2C3D4E5F6) — shown on W600 label or HA device info")
     ap.add_argument("--timeout", type=float, default=60.0,
                     help="seconds to wait for confirming CMD 0x02 (default 60)")
     args = ap.parse_args()
