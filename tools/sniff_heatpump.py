@@ -175,9 +175,9 @@ def handle_raw_frame(raw: bytes, last_setdata: dict[int, float], writer) -> None
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Passive heat pump frame sniffer")
-    ap.add_argument("--host", default="192.168.0.82")
+    ap.add_argument("--host", required=True, help="W600 bridge IP address")
     ap.add_argument("--port", type=int, default=8899)
-    ap.add_argument("--logfile", default="/config/tools/sniff.log",
+    ap.add_argument("--logfile", default="sniff.log",
                     help="Also append output to this file")
     ap.add_argument("--duration", type=int, default=0,
                     help="Stop after N seconds (0 = run until Ctrl-C)")

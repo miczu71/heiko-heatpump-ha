@@ -5,7 +5,7 @@
   "documentation": "https://github.com/miczu71/heiko-heatpump-ha",
   "issue_tracker": "https://github.com/miczu71/heiko-heatpump-ha/issues",
   "dependencies": [],
-  "codeowners": [],
+  "codeowners": ["@miczu71"],
   "requirements": [],
   "config_flow": true,
   "iot_class": "local_push",

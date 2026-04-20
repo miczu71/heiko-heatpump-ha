@@ -16,7 +16,7 @@ HOW TO USE:
 The CMD 0x02 frame (sent automatically every 3 min) will also decode all
 setdata parameters — letting us map every controllable register.
 
-Run:  python3 capture_writes.py [--host 192.168.0.82] [--port 8899]
+Run:  python3 capture_writes.py --host YOUR_W600_IP [--port 8899]
 """
 
 import socket
@@ -25,7 +25,6 @@ import time
 import argparse
 from datetime import datetime
 
-HOST = "192.168.0.82"
 PORT = 8899
 
 CMD_NAMES = {
@@ -120,7 +119,7 @@ def print_frame(frame: bytes, direction: str = ""):
 
 def main():
     parser = argparse.ArgumentParser(description="Heiko write-command capture tool")
-    parser.add_argument("--host", default=HOST)
+    parser.add_argument("--host", required=True, help="W600 bridge IP address")
     parser.add_argument("--port", type=int, default=PORT)
     parser.add_argument("--all", action="store_true",
                         help="Show all frames (default: only CMD 0x02 and 0x05)")

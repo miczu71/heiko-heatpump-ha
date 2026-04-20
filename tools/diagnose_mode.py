@@ -12,7 +12,7 @@ WorkingMode index.
 
 Usage:
     python3 diagnose_mode.py
-    python3 diagnose_mode.py --host 192.168.0.82 --port 8899
+    python3 diagnose_mode.py --host YOUR_W600_IP --port 8899
 """
 
 import socket
@@ -20,7 +20,6 @@ import struct
 import time
 import argparse
 
-HOST = "192.168.0.82"
 PORT = 8899
 
 KNOWN_SLOTS = {
@@ -140,7 +139,7 @@ def analyse(frame: bytes, target_mode: float) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Heiko heat pump mode diagnostic")
-    parser.add_argument("--host", default=HOST)
+    parser.add_argument("--host", required=True, help="W600 bridge IP address")
     parser.add_argument("--port", type=int, default=PORT)
     parser.add_argument("--mode", type=float, default=2.0,
                         help="Expected working mode value (default 2.0 = Heating)")

@@ -234,7 +234,7 @@ def main() -> int:
                     help="host:port to listen on (default: 0.0.0.0:18899)")
     ap.add_argument("--upstream", default="www.myheatpump.com:18899",
                     help="real cloud host:port (default: www.myheatpump.com:18899)")
-    ap.add_argument("--logfile", default="/config/tools/mitm.log",
+    ap.add_argument("--logfile", default="mitm.log",
                     help="append-only log file")
     args = ap.parse_args()
 

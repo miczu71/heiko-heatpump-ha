@@ -8,10 +8,9 @@ CMD 0x02 SETDATA from the pump and reports whether the target field
 took the new value.
 
 Usage:
-  python3 /config/tools/test_write_live.py dhw 49
-  python3 /config/tools/test_write_live.py setpoint 22
-  python3 /config/tools/test_write_live.py power 1
-  python3 /config/tools/test_write_live.py mode 3      # 3 = DHW
+  python3 test_write_live.py --host 192.168.1.100 --mn F4700C77F01A dhw 49
+  python3 test_write_live.py --host 192.168.1.100 --mn F4700C77F01A power 1
+  python3 test_write_live.py --host 192.168.1.100 --mn F4700C77F01A mode 3
 
 Caveats:
 - This connects as a second SocketA client to the W600. If the W600 is
@@ -40,9 +39,7 @@ from protocol import (  # noqa: E402
     WRITE_IDX_HEATING_CURVE, WRITE_IDX_HBH, WRITE_IDX_DHW_STORAGE,
 )
 
-W600_HOST = "192.168.0.82"
 W600_PORT = 8899
-MN = bytes([0xf4, 0x70, 0x0c, 0x77, 0xf0, 0x1a])
 
 
 def read_float_at(payload: bytes, idx: int) -> float | None:
@@ -56,9 +53,17 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("param", choices=["dhw", "setpoint", "power", "mode", "curve", "hbh", "dhw_storage"])
     ap.add_argument("value", type=float)
+    ap.add_argument("--host", required=True, help="W600 bridge IP address (e.g. 192.168.1.100)")
+    ap.add_argument("--mn", required=True,
+                    help="Unit MN as 12 hex chars (e.g. F4700C77F01A) — shown on W600 label or HA device info")
     ap.add_argument("--timeout", type=float, default=60.0,
                     help="seconds to wait for confirming CMD 0x02 (default 60)")
     args = ap.parse_args()
+    mn_str = args.mn.replace(":", "").replace("-", "")
+    if len(mn_str) != 12:
+        ap.error("--mn must be exactly 12 hex characters")
+    MN = bytes.fromhex(mn_str)
+    W600_HOST = args.host
 
     if args.param == "dhw":
         frame = build_set_dhw_setpoint(MN, args.value)
@@ -92,7 +97,7 @@ def main() -> int:
     print(f"Target: {label}")
     print(f"Frame : {frame.hex(' ')}")
     print(f"Connecting to {W600_HOST}:{W600_PORT} …")
-    sock = socket.create_connection((W600_HOST, W600_PORT), timeout=10)
+    sock = socket.create_connection((W600_HOST, W600_PORT), timeout=10)  # noqa: F821
     sock.settimeout(5.0)
 
     buf = FrameBuffer()
