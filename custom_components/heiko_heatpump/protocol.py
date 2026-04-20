@@ -30,7 +30,13 @@ from typing import Optional
 _LOGGER = logging.getLogger(__name__)
 
 # ── Frame constants ────────────────────────────────────────────────────────────
-FRAME_HEADER   = bytes([0xAA, 0x55])
+# Two header directions are used on the wire:
+#   unit → server: 0xAA 0x55
+#   server → unit: 0x55 0xAA
+# CRC rules differ between the two directions — see _build_frame / parse_frame.
+FRAME_HEADER_UNIT_TO_SERVER = bytes([0xAA, 0x55])
+FRAME_HEADER_SERVER_TO_UNIT = bytes([0x55, 0xAA])
+FRAME_HEADER   = FRAME_HEADER_UNIT_TO_SERVER   # backwards-compat alias
 FRAME_END      = 0x3A
 CMD_REALTIME   = 0x01   # unit → server: realtime sensor data (every ~30 s)
 CMD_SETPARAMS  = 0x02   # unit → server: set-parameter snapshot (every ~3 min)
@@ -201,8 +207,14 @@ def parse_frame(raw: bytes) -> Optional[HeatPumpFrame]:
         _LOGGER.debug("Frame too short: %d bytes", len(raw))
         return None
 
-    # Validate header
-    if raw[0] != 0xAA or raw[1] != 0x55:
+    # Validate header — accept both directions:
+    #   unit → server: AA 55
+    #   server → unit: 55 AA (used by cloud when pushing writes / acks / polls)
+    if raw[0] == 0xAA and raw[1] == 0x55:
+        is_server_to_unit = False
+    elif raw[0] == 0x55 and raw[1] == 0xAA:
+        is_server_to_unit = True
+    else:
         _LOGGER.debug("Bad header: %02X %02X", raw[0], raw[1])
         return None
 
@@ -233,16 +245,18 @@ def parse_frame(raw: bytes) -> Optional[HeatPumpFrame]:
     payload    = raw[13:payload_end]
     recv_crc   = struct.unpack_from('<H', raw, payload_end)[0]  # CRC is LE uint16
 
-    # CRC verification.
-    #
-    # The pump uses a CRC variant that differs from standard CRC-16/Modbus by
-    # a constant XOR offset of 0x0903. Confirmed from 29+ received frames where
-    # received XOR computed_standard = 0x0903 without exception.
-    #
-    # We compute with the pump's variant (standard XOR 0x0903) for both
-    # sending and receiving, so CRCs should now match exactly.
-    # A mismatch indicates genuine frame corruption.
-    computed_crc = (_compute_crc(raw[:payload_end]) ^ _PUMP_CRC_OFFSET) & 0xFFFF
+    # CRC verification — rules differ by direction:
+    #   server → unit (55 AA): CRC-16/Modbus of body bytes EXCLUDING the 2-byte
+    #     header, no XOR offset. Confirmed from captured cloud→pump frames
+    #     (CMD 0x03 ACK-RT, CMD 0x04 ACK-SET, CMD 0x05 WRITE).
+    #   unit → server (AA 55): CRC-16/Modbus of FULL body INCLUDING header,
+    #     XOR'd with a command-dependent offset (0x0903 for CMD 0x01, 0x0DB0
+    #     for CMD 0x02). We keep the 0x0903 convention for realtime frames;
+    #     setdata CRC mismatches are tolerated (data still decodes fine).
+    if is_server_to_unit:
+        computed_crc = _compute_crc(raw[2:payload_end]) & 0xFFFF
+    else:
+        computed_crc = (_compute_crc(raw[:payload_end]) ^ _PUMP_CRC_OFFSET) & 0xFFFF
     crc_ok = (recv_crc == computed_crc)
 
     if not crc_ok:
@@ -311,20 +325,25 @@ def _build_frame(
     payload: bytes,
 ) -> bytes:
     """
-    Assemble a complete frame ready to send over TCP.
+    Assemble a server→unit frame ready to send over TCP.
 
     Layout:
-      AA 55 | target | MN(6) | devID | content_len(2,LE) | command | payload(n) | CRC(2,LE) | 3A
+      55 AA | target | MN(6) | devID | content_len(2,LE) | command | payload(n) | CRC(2,LE) | 3A
 
-    CRC uses the pump's variant: CRC-16/Modbus XOR 0x0903.
+    Critical details reverse-engineered by MITM'ing the cloud's writes:
+      - Header is 55 AA (server → unit direction), NOT the AA 55 used by
+        the pump's upstream frames.
+      - CRC is plain CRC-16/Modbus over the body bytes EXCLUDING the 2-byte
+        header, with NO XOR offset.
+      - Prior to this rule being found, every CMD 0x05 write we sent was
+        silently discarded by the pump.
     """
     assert len(mn) == 6, "MN must be exactly 6 bytes"
 
     content_len = len(payload) + 1  # +1 for the command byte
 
-    frame_body = (
-        FRAME_HEADER
-        + bytes([target])
+    body_without_header = (
+        bytes([target])
         + mn
         + bytes([device_id])
         + struct.pack('<H', content_len)
@@ -332,9 +351,13 @@ def _build_frame(
         + payload
     )
 
-    # Apply pump's CRC offset so the pump accepts our frames
-    crc = (_compute_crc(frame_body) ^ _PUMP_CRC_OFFSET) & 0xFFFF
-    return frame_body + struct.pack('<H', crc) + bytes([FRAME_END])
+    crc = _compute_crc(body_without_header) & 0xFFFF
+    return (
+        FRAME_HEADER_SERVER_TO_UNIT
+        + body_without_header
+        + struct.pack('<H', crc)
+        + bytes([FRAME_END])
+    )
 
 
 def build_request_realtime(mn: bytes, target: int = 0x01, device_id: int = 0x01) -> bytes:
@@ -362,6 +385,22 @@ def build_ack_realtime(mn: bytes, target: int = 0x01, device_id: int = 0x01) -> 
         mn=mn,
         device_id=device_id,
         command=CMD_ACK_RT,
+        payload=b'',
+    )
+
+
+def build_ack_setparams(mn: bytes, target: int = 0x01, device_id: int = 0x01) -> bytes:
+    """
+    Build CMD 0x04: server acknowledges receipt of set-parameter data.
+    Send this in response to each CMD 0x02 frame from the unit.
+    The cloud server always sends this; omitting it may cause the pump to
+    distrust the client and ignore subsequent CMD 0x05 write commands.
+    """
+    return _build_frame(
+        target=target,
+        mn=mn,
+        device_id=device_id,
+        command=CMD_ACK_SET,
         payload=b'',
     )
 
@@ -405,10 +444,13 @@ def build_write_param(
 #   Heating  → index 37 (setdata par38: °C, confirmed ✓)
 #   DHW      → index 54 (setdata par55: °C)
 
-WRITE_IDX_POWER   = 0
-WRITE_IDX_MODE    = 3
-WRITE_IDX_HEATING = 37   # same as PARAM_MAP["Setpoint"][0]
-WRITE_IDX_DHW     = 54
+WRITE_IDX_POWER         = 0    # 0.0=off, 1.0=on  (confirmed MITM)
+WRITE_IDX_MODE          = 3    # 0=standby,1=heating,2=cooling,3=DHW,4=auto
+WRITE_IDX_HEATING_CURVE = 23   # 0.0=off, 1.0=on  (confirmed MITM)
+WRITE_IDX_HBH           = 48   # backup heater: 0.0=enabled, 1.0=disabled (inverted, confirmed MITM)
+WRITE_IDX_HEATING       = 37   # °C  (confirmed MITM)
+WRITE_IDX_DHW           = 54   # °C  (confirmed MITM)
+WRITE_IDX_DHW_STORAGE   = 62   # DHW storage: 0.0=off, 1.0=on  (confirmed MITM)
 
 # Working mode values (confirmed from traffic capture)
 MODE_STANDBY  = 0   # likely — power-off state
@@ -440,6 +482,22 @@ def build_set_setpoint(mn: bytes, setpoint_celsius: float, **kwargs) -> bytes:
     Set heating water circuit setpoint. Write index 37. Confirmed by traffic capture.
     """
     return build_write_param(mn, WRITE_IDX_HEATING, setpoint_celsius, **kwargs)
+
+
+def build_set_heating_curve(mn: bytes, on: bool, **kwargs) -> bytes:
+    """Enable/disable weather-compensated heating curve. Write index 23. Confirmed MITM."""
+    return build_write_param(mn, WRITE_IDX_HEATING_CURVE, 1.0 if on else 0.0, **kwargs)
+
+
+def build_set_hbh(mn: bytes, on: bool, **kwargs) -> bytes:
+    """Enable/disable backup heater (HBH). Write index 48. Confirmed MITM.
+    Note: pump logic is inverted — 0.0 enables, 1.0 disables."""
+    return build_write_param(mn, WRITE_IDX_HBH, 0.0 if on else 1.0, **kwargs)
+
+
+def build_set_dhw_storage(mn: bytes, on: bool, **kwargs) -> bytes:
+    """Enable/disable DHW storage mode. Write index 62. Confirmed MITM."""
+    return build_write_param(mn, WRITE_IDX_DHW_STORAGE, 1.0 if on else 0.0, **kwargs)
 
 
 def build_set_dhw_setpoint(mn: bytes, setpoint_celsius: float, **kwargs) -> bytes:
@@ -482,9 +540,10 @@ class FrameBuffer:
     def _try_extract_one(self) -> Optional[bytes]:
         buf = self._buf
 
-        # Search for header 0xAA 0x55
+        # Search for either header direction:
+        #   AA 55 = unit → server,  55 AA = server → unit
         while len(buf) >= 2:
-            if buf[0] == 0xAA and buf[1] == 0x55:
+            if (buf[0] == 0xAA and buf[1] == 0x55) or (buf[0] == 0x55 and buf[1] == 0xAA):
                 break
             buf.pop(0)  # discard leading garbage byte
 

@@ -26,11 +26,15 @@ from .protocol import (
     CMD_SETPARAMS,
     MODE_STANDBY, MODE_HEATING, MODE_COOLING, MODE_DHW, MODE_AUTO,
     build_ack_realtime,
+    build_ack_setparams,
     build_request_realtime,
     build_set_power,
     build_set_mode,
     build_set_setpoint,
     build_set_dhw_setpoint,
+    build_set_heating_curve,
+    build_set_hbh,
+    build_set_dhw_storage,
     extract_all_params,
 )
 from .tcp_client import HeikoTCPClient
@@ -119,26 +123,70 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
 
     async def _handle_setdata(self, frame: HeatPumpFrame) -> None:
         """
-        Process CMD 0x02 setdata frame (sent by pump every ~3 minutes).
-        Learns the pump's MN and extracts the DHW setpoint (write index 54).
+        Process CMD 0x02 setdata frame.
+
+        Sends CMD 0x04 ACK — the cloud server always does this; omitting it
+        may cause the pump to distrust the client and ignore CMD 0x05 writes.
+
+        Extracts slow-changing state values not present in CMD 0x01 realtime frames:
+        DHW_Setpoint, Power_State, HeatingCurve_State, HBH_State, DHWStorage_State.
         """
         if frame.mn != self._mn:
             self._mn = frame.mn
 
-        # Extracts the DHW setpoint and merges it into the live data dict
-        # so the number entity shows the current value before the user changes it.
-        if len(frame.payload) < 2 + 54 * 4 + 4:
-            _LOGGER.debug("CMD 0x02 payload too short for DHW setpoint (%d bytes)", len(frame.payload))
-            return
+        # Always ACK the set-params frame (CMD 0x04)
+        ack = build_ack_setparams(frame.mn, target=frame.target, device_id=frame.device_id)
+        await self._client.send(ack)
 
         import struct as _st
-        dhw_offset = 2 + 54 * 4   # same offset formula as realdata
-        dhw_val = _st.unpack_from('<f', frame.payload, dhw_offset)[0]
-        if -1e6 < dhw_val < 1e6 and dhw_val > 0:
-            if self._latest_data:
-                self._latest_data["DHW_Setpoint"] = round(dhw_val, 1)
-                self.async_set_updated_data(self._latest_data)
-                _LOGGER.debug("CMD 0x02: DHW setpoint = %.1f°C", dhw_val)
+
+        def _read_float(idx: int) -> float | None:
+            off = 2 + idx * 4
+            if len(frame.payload) >= off + 4:
+                v = _st.unpack_from('<f', frame.payload, off)[0]
+                if -1e6 < v < 1e6:
+                    return v
+            return None
+
+        changed = False
+
+        # DHW setpoint — idx 54
+        v = _read_float(54)
+        if v is not None and v > 0:
+            self._latest_data["DHW_Setpoint"] = round(v, 1)
+            changed = True
+            _LOGGER.debug("CMD 0x02: DHW setpoint = %.1f°C", v)
+
+        # Power state — idx 0: 0.0=off, 1.0=on
+        v = _read_float(0)
+        if v is not None:
+            self._latest_data["Power_State"] = float(round(v))
+            changed = True
+            _LOGGER.debug("CMD 0x02: Power = %.0f", v)
+
+        # Heating curve — idx 23: 0.0=off, 1.0=on
+        v = _read_float(23)
+        if v is not None:
+            self._latest_data["HeatingCurve_State"] = float(round(v))
+            changed = True
+            _LOGGER.debug("CMD 0x02: HeatingCurve = %.0f", v)
+
+        # HBH backup heater — idx 48: inverted (0.0=enabled, 1.0=disabled)
+        v = _read_float(48)
+        if v is not None:
+            self._latest_data["HBH_State"] = float(round(v))
+            changed = True
+            _LOGGER.debug("CMD 0x02: HBH = %.0f (0=on, 1=off)", v)
+
+        # DHW storage — idx 62: 0.0=off, 1.0=on
+        v = _read_float(62)
+        if v is not None:
+            self._latest_data["DHWStorage_State"] = float(round(v))
+            changed = True
+            _LOGGER.debug("CMD 0x02: DHWStorage = %.0f", v)
+
+        if changed and self._latest_data:
+            self.async_set_updated_data(self._latest_data)
 
     async def _handle_realtime(self, frame: HeatPumpFrame) -> None:
         """Process a CMD 0x01 realtime data frame."""
@@ -235,6 +283,21 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         """Set DHW (hot water) target temperature. Write index 54."""
         await self._send_write(build_set_dhw_setpoint(self._mn, setpoint_celsius),
                                f"DHW setpoint → {setpoint_celsius:.1f}°C")
+
+    async def async_set_heating_curve(self, on: bool) -> None:
+        """Enable/disable heating curve. Write index 23: 1.0=on, 0.0=off."""
+        await self._send_write(build_set_heating_curve(self._mn, on),
+                               f"Heating curve → {'ON' if on else 'OFF'}")
+
+    async def async_set_hbh(self, on: bool) -> None:
+        """Enable/disable backup heater (HBH). Write index 48: inverted (0.0=on, 1.0=off)."""
+        await self._send_write(build_set_hbh(self._mn, on),
+                               f"Backup heater (HBH) → {'ON' if on else 'OFF'}")
+
+    async def async_set_dhw_storage(self, on: bool) -> None:
+        """Enable/disable DHW storage. Write index 62: 1.0=on, 0.0=off."""
+        await self._send_write(build_set_dhw_storage(self._mn, on),
+                               f"DHW storage → {'ON' if on else 'OFF'}")
 
     async def _send_write(self, frame_bytes: bytes, description: str) -> None:
         """Send a CMD 0x05 write frame and log it."""
