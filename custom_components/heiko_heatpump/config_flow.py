@@ -10,6 +10,7 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 
 from .const import DOMAIN, DEFAULT_HOST, DEFAULT_PORT, CONF_MN, CONF_FLOW_RATE, DEFAULT_FLOW_RATE
@@ -57,6 +58,11 @@ class HeikoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> HeikoOptionsFlow:
+        return HeikoOptionsFlow(config_entry)
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -100,3 +106,45 @@ class HeikoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=STEP_USER_SCHEMA,
             errors=errors,
         )
+
+
+class HeikoOptionsFlow(config_entries.OptionsFlow):
+    """Allow editing host/port/MN/flow-rate after initial setup."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        self._entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            mn_str = user_input[CONF_MN].strip()
+            try:
+                _validate_mn(mn_str)
+            except (ValueError, Exception):
+                errors[CONF_MN] = "invalid_mn"
+            else:
+                self.hass.config_entries.async_update_entry(
+                    self._entry,
+                    data={
+                        CONF_HOST:      user_input[CONF_HOST].strip(),
+                        CONF_PORT:      int(user_input[CONF_PORT]),
+                        CONF_MN:        mn_str.upper().replace(":", ""),
+                        CONF_FLOW_RATE: float(user_input[CONF_FLOW_RATE]),
+                    },
+                )
+                await self.hass.config_entries.async_reload(self._entry.entry_id)
+                return self.async_create_entry(title="", data={})
+
+        current = self._entry.data
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_HOST,      default=current.get(CONF_HOST, "")): str,
+                vol.Required(CONF_PORT,      default=current.get(CONF_PORT, DEFAULT_PORT)): int,
+                vol.Required(CONF_MN,        default=current.get(CONF_MN, "")): str,
+                vol.Required(CONF_FLOW_RATE, default=current.get(CONF_FLOW_RATE, DEFAULT_FLOW_RATE)): vol.Coerce(float),
+            }
+        )
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

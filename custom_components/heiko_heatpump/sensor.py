@@ -27,7 +27,7 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -342,10 +342,11 @@ async def async_setup_entry(
         HeikoSensorEntity(coordinator, description, mn_str)
         for description in SENSOR_DESCRIPTIONS
     ]
-    # Specialised text-value entities
     entities.append(HeikoWaterPumpEntity(coordinator, mn_str))
-    entities.append(HeikoWorkingModeTextEntity(coordinator, mn_str))  # instantaneous state (CMD 0x01)
-    entities.append(HeikoModeSettingEntity(coordinator, mn_str))       # mode setting (CMD 0x02, replaces cloud par4)
+    entities.append(HeikoWorkingModeTextEntity(coordinator, mn_str))
+    entities.append(HeikoModeSettingEntity(coordinator, mn_str))
+    entities.append(HeikoLastSeenSensor(coordinator, mn_str))
+    entities.append(HeikoReconnectSensor(coordinator, mn_str))
     async_add_entities(entities)
 
 
@@ -413,6 +414,59 @@ class HeikoWaterPumpEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
         if raw is None:
             return None
         return "on" if raw >= 0.5 else "off"
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
+
+
+class HeikoLastSeenSensor(CoordinatorEntity[HeikoCoordinator], SensorEntity):
+    """Timestamp of the last frame received from the heat pump."""
+
+    _attr_name = "Last Seen"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{mn_str}_last_seen"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, mn_str)},
+            name="Heiko Heat Pump",
+            manufacturer=MANUFACTURER,
+            model=MODEL,
+        )
+
+    @property
+    def native_value(self):
+        return self.coordinator.last_seen
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
+
+
+class HeikoReconnectSensor(CoordinatorEntity[HeikoCoordinator], SensorEntity):
+    """Number of times the TCP client has reconnected since HA started."""
+
+    _attr_name = "Reconnect Count"
+    _attr_icon = "mdi:wifi-refresh"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{mn_str}_reconnect_count"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, mn_str)},
+            name="Heiko Heat Pump",
+            manufacturer=MANUFACTURER,
+            model=MODEL,
+        )
+
+    @property
+    def native_value(self) -> int:
+        return self.coordinator.reconnect_count
 
     @callback
     def _handle_coordinator_update(self) -> None:

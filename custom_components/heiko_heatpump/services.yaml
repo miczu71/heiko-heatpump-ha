@@ -1,0 +1,72 @@
+set_dhw_setpoint:
+  name: Set DHW Setpoint
+  description: Set the domestic hot water target temperature.
+  fields:
+    temperature:
+      name: Temperature
+      description: Target temperature in °C (40–60).
+      required: true
+      selector:
+        number:
+          min: 40
+          max: 60
+          step: 1
+          unit_of_measurement: "°C"
+
+set_mode:
+  name: Set Working Mode
+  description: Set the heat pump working mode.
+  fields:
+    mode:
+      name: Mode
+      description: "Mode as integer (0–4) or name: standby, heating, cooling, dhw, auto."
+      required: true
+      selector:
+        select:
+          options:
+            - "standby"
+            - "heating"
+            - "cooling"
+            - "dhw"
+            - "auto"
+
+set_power:
+  name: Set Power
+  description: Turn the heat pump on or off.
+  fields:
+    power:
+      name: Power
+      description: true = on, false = off.
+      required: true
+      selector:
+        boolean:
+
+set_heating_curve:
+  name: Set Heating Curve
+  description: Enable or disable weather-compensated heating curve.
+  fields:
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean:
+
+set_hbh:
+  name: Set Backup Heater (HBH)
+  description: Enable or disable the auxiliary backup heater.
+  fields:
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean:
+
+set_dhw_storage:
+  name: Set DHW Storage
+  description: Enable or disable DHW storage mode.
+  fields:
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean:

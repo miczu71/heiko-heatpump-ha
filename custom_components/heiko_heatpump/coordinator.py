@@ -13,11 +13,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, DEFAULT_FLOW_RATE
 from .protocol import (
@@ -65,11 +66,14 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
             name=DOMAIN,
             update_interval=POLL_INTERVAL,
         )
-        self._mn_config     = mn              # MN from config (WiFi module MAC)
-        self._mn            = mn              # active MN used for writes — updated on first frame
-        self._flow_rate_lps = flow_rate_lps
-        self._client        = HeikoTCPClient(host, port, self._on_frame, self._on_connection_change)
+        self._mn_config       = mn
+        self._mn              = mn
+        self._flow_rate_lps   = flow_rate_lps
+        self._client          = HeikoTCPClient(host, port, self._on_frame, self._on_connection_change)
         self._latest_data: dict[str, float] = {}
+        self._last_seen: datetime | None = None
+        self._reconnect_count: int = 0
+        self._ever_connected: bool = False
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -85,8 +89,21 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
     def connected(self) -> bool:
         return self._client.connected
 
+    @property
+    def last_seen(self) -> datetime | None:
+        return self._last_seen
+
+    @property
+    def reconnect_count(self) -> int:
+        return self._reconnect_count
+
     async def _on_connection_change(self, is_connected: bool) -> None:
         """Called by HeikoTCPClient when the TCP connection is established or lost."""
+        if is_connected:
+            if self._ever_connected:
+                self._reconnect_count += 1
+            else:
+                self._ever_connected = True
         _LOGGER.info("Heat pump bridge connection: %s", "connected" if is_connected else "disconnected")
         self.async_set_updated_data(self._latest_data)
 
@@ -124,6 +141,7 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         CMD 0x01: realtime data (every ~30 s) — main sensor update path.
         CMD 0x02: setdata snapshot (every ~3 min) — reads DHW setpoint.
         """
+        self._last_seen = dt_util.utcnow()
         if frame.command == CMD_REALTIME:
             await self._handle_realtime(frame)
         elif frame.command == CMD_SETPARAMS:
