@@ -5,7 +5,7 @@ DOMAIN = "heiko_heatpump"
 # Config entry keys
 CONF_HOST      = "host"
 CONF_PORT      = "port"
-CONF_MN        = "mn"   # stored as hex string, e.g. "F4700C77F01A"
+CONF_MN        = "mn"   # stored as hex string, e.g. "A1B2C3D4E5F6"
 CONF_FLOW_RATE = "flow_rate_lps"  # water flow rate in L/s (for COP calculation)
 
 # Default connection parameters

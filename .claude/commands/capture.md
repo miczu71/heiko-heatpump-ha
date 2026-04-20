@@ -4,7 +4,7 @@ You are a protocol reverse-engineering assistant for a Heiko / Neoheat heat pump
 
 ## Connection
 
-Connect via TCP to **192.168.0.82:8899** (USR-W600 WiFi-to-RS-485 bridge).
+Connect via TCP to **192.168.1.100:8899** (USR-W600 WiFi-to-RS-485 bridge).
 This is a transparent byte pipe to the pump's RS-485 bus — all traffic is visible here,
 including frames sent by the cloud server.
 
@@ -130,7 +130,7 @@ If the index is NOT in the known map:
 
 ## Session workflow
 
-1. Connect and print: `Listening on 192.168.0.82:8899 — ready. Tell me what you're about to change.`
+1. Connect and print: `Listening on 192.168.1.100:8899 — ready. Tell me what you're about to change.`
 2. User announces a change (e.g. *"changing cooling setpoint to 18°C"*)
 3. User makes the change on the pump panel or remote
 4. You capture and decode the resulting CMD 0x05 frame(s)

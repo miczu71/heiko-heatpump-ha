@@ -8,7 +8,7 @@ every byte the cloud sends down — including CMD 0x05 (WRITE) frames
 that are currently invisible on our local SocketA tap.
 
 How to redirect the W600:
-  Option A (simplest) — log into the W600 config at http://192.168.0.82,
+  Option A (simplest) — log into the W600 config at http://192.168.1.100,
     go to Trans Setting → SocketB Connect Setting, and change
     "Server IP Address" from www.myheatpump.com to the IP of the host
     running this proxy (e.g. your HA host). Save + reboot the W600.

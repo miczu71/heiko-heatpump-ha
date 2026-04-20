@@ -29,7 +29,7 @@ STEP_USER_SCHEMA = vol.Schema(
 
 def _validate_mn(mn_str: str) -> bytes:
     """
-    Validate and parse the MN hex string (e.g. "F4700C77F01A") to 6 bytes.
+    Validate and parse the MN hex string (e.g. "A1B2C3D4E5F6") to 6 bytes.
     Raises ValueError on invalid input.
     """
     mn_clean = mn_str.replace(":", "").replace("-", "").replace(" ", "").upper()

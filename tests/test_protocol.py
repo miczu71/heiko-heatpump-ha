@@ -58,7 +58,7 @@ EXAMPLE_FRAME_HEX = (
 EXAMPLE_PAYLOAD = bytes.fromhex(EXAMPLE_FRAME_HEX.replace(" ", ""))[13:]
 
 # Test MN (6 bytes) — using the module's real MAC from the config
-TEST_MN = bytes.fromhex("F4700C77F01A")
+TEST_MN = bytes.fromhex("A1B2C3D4E5F6")
 
 
 # ── Float extraction ───────────────────────────────────────────────────────────

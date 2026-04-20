@@ -3,7 +3,7 @@
 ## Context — what this integration is
 
 Custom Home Assistant integration for a **Heiko / Neoheat Eko II 6kW heat pump**
-connected via a USR-W600 WiFi-to-RS-485 bridge (192.168.0.82:8899).
+connected via a USR-W600 WiFi-to-RS-485 bridge (192.168.1.100:8899).
 
 The integration lives in `custom_components/heiko_heatpump/` and consists of:
 
@@ -38,7 +38,7 @@ payload_offset = 2 + index * 4
 # Frame builder pattern (see protocol.py build_write_param):
 payload = struct.pack('<H', write_index) + struct.pack('<f', value)
 # Full frame: AA 55 01 <MN:6> 01 <len:2 LE> 05 <payload> <CRC:2 LE> 3A
-# MN = f4700c77f01a, Target = 0x01, DevID = 0x01
+# MN = a1b2c3d4e5f6, Target = 0x01, DevID = 0x01
 
 # Write index formula (verified):
 write_index = cloud_setdata_parN - 1

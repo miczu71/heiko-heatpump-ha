@@ -1,7 +1,7 @@
 """
 Async TCP client for the USR-W600 WiFi-to-RS-485 bridge.
 
-The USR-W600 acts as a TCP server on 192.168.0.82:8899.
+The USR-W600 acts as a TCP server on 192.168.1.100:8899.
 Any client connecting to it gets a transparent byte pipe to the RS-485 bus.
 The heat pump sends CMD 0x01 frames approximately every 30 seconds unprompted;
 we can also poll by sending CMD 0x06.
@@ -32,7 +32,7 @@ class HeikoTCPClient:
     and exposes a send() method for writing frames back.
 
     Usage:
-        client = HeikoTCPClient("192.168.0.82", 8899, on_frame_callback)
+        client = HeikoTCPClient("192.168.1.100", 8899, on_frame_callback)
         await client.start()
         ...
         await client.stop()
