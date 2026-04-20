@@ -79,7 +79,7 @@ class HeikoClimateEntity(CoordinatorEntity[HeikoCoordinator], ClimateEntity):
     _attr_name                    = "Heat Pump"
     _attr_icon                    = "mdi:heat-pump"
     _attr_temperature_unit        = UnitOfTemperature.CELSIUS
-    _attr_hvac_modes              = [HVACMode.OFF, HVACMode.HEAT]
+    _attr_hvac_modes              = [HVACMode.OFF, HVACMode.AUTO]
     _attr_preset_modes            = ["Heating", "DHW", "Auto", "Cooling"]
     _attr_supported_features      = (
         ClimateEntityFeature.TARGET_TEMPERATURE
@@ -112,7 +112,7 @@ class HeikoClimateEntity(CoordinatorEntity[HeikoCoordinator], ClimateEntity):
         wm = self.coordinator.data.get("Mode_Setdata")
         if wm is None:
             return None
-        return HVACMode.OFF if int(round(wm)) == 0 else HVACMode.HEAT
+        return HVACMode.OFF if int(round(wm)) == 0 else HVACMode.AUTO
 
     @property
     def preset_mode(self) -> str | None:
@@ -140,7 +140,7 @@ class HeikoClimateEntity(CoordinatorEntity[HeikoCoordinator], ClimateEntity):
         return self.coordinator.data.get("Tw")
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
-        """OFF → power off; HEAT → power on (retains current preset/mode)."""
+        """OFF → power off; AUTO → power on (retains current preset/mode)."""
         self._optimistic_mode = hvac_mode
         self.async_write_ha_state()
         try:
@@ -157,7 +157,7 @@ class HeikoClimateEntity(CoordinatorEntity[HeikoCoordinator], ClimateEntity):
             _LOGGER.error("Unknown preset: %s", preset_mode)
             return
         self._optimistic_preset = preset_mode
-        self._optimistic_mode   = HVACMode.HEAT
+        self._optimistic_mode   = HVACMode.AUTO
         self.async_write_ha_state()
         try:
             await self.coordinator.async_set_power(True)
