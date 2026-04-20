@@ -26,7 +26,7 @@ from .protocol import MODE_STANDBY, MODE_HEATING, MODE_COOLING, MODE_DHW, MODE_A
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["binary_sensor", "sensor", "switch", "climate", "number", "select", "water_heater"]
+PLATFORMS = ["binary_sensor", "sensor", "switch", "number", "select", "water_heater"]
 
 _MODE_NAMES: dict[str, int] = {
     "standby": MODE_STANDBY,
