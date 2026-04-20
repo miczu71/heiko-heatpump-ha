@@ -43,10 +43,12 @@ class HeikoTCPClient:
         host: str,
         port: int,
         on_frame: Callable[[HeatPumpFrame], Coroutine[Any, Any, None]],
+        on_connection_change: Callable[[bool], Coroutine[Any, Any, None]] | None = None,
     ) -> None:
         self._host      = host
         self._port      = port
         self._on_frame  = on_frame
+        self._on_connection_change = on_connection_change
         self._writer: asyncio.StreamWriter | None = None
         self._task: asyncio.Task | None = None
         self._stopping  = False
@@ -116,6 +118,11 @@ class HeikoTCPClient:
                 self._buffer    = FrameBuffer()  # reset buffer on new connection
                 backoff         = _BACKOFF_INITIAL  # reset backoff on successful connect
                 _LOGGER.info("Connected to %s:%d", self._host, self._port)
+                if self._on_connection_change:
+                    try:
+                        await self._on_connection_change(True)
+                    except Exception:
+                        pass
 
                 await self._receive_loop(reader)
 
@@ -129,7 +136,13 @@ class HeikoTCPClient:
             except Exception as exc:
                 _LOGGER.exception("Unexpected error in connection loop: %s", exc)
             finally:
+                was_connected = self._connected
                 self._connected = False
+                if was_connected and self._on_connection_change:
+                    try:
+                        await self._on_connection_change(False)
+                    except Exception:
+                        pass
                 if self._writer:
                     try:
                         self._writer.close()

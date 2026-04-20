@@ -68,7 +68,7 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         self._mn_config     = mn              # MN from config (WiFi module MAC)
         self._mn            = mn              # active MN used for writes — updated on first frame
         self._flow_rate_lps = flow_rate_lps
-        self._client        = HeikoTCPClient(host, port, self._on_frame)
+        self._client        = HeikoTCPClient(host, port, self._on_frame, self._on_connection_change)
         self._latest_data: dict[str, float] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -80,6 +80,15 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
     async def async_stop(self) -> None:
         """Stop the TCP client. Called from async_unload_entry."""
         await self._client.stop()
+
+    @property
+    def connected(self) -> bool:
+        return self._client.connected
+
+    async def _on_connection_change(self, is_connected: bool) -> None:
+        """Called by HeikoTCPClient when the TCP connection is established or lost."""
+        _LOGGER.info("Heat pump bridge connection: %s", "connected" if is_connected else "disconnected")
+        self.async_set_updated_data(self._latest_data)
 
     # ── DataUpdateCoordinator override ────────────────────────────────────────
 
