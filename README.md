@@ -1,6 +1,7 @@
 # Heiko Heat Pump — Home Assistant Integration
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![GitHub release](https://img.shields.io/github/v/release/miczu71/heiko-heatpump-ha)](https://github.com/miczu71/heiko-heatpump-ha/releases)
 
 Local-only (no cloud) Home Assistant custom integration for **Heiko / Neoheat / ECOtouch** heat pumps connected via a **USR-W600 WiFi-to-RS-485 bridge**.
 
@@ -12,12 +13,15 @@ Frame format and all write indices were confirmed by MITM-capturing live cloud�
 
 ## Features
 
-- **Climate entity** — thermostat card with DHW setpoint control (40–60 °C, step 1 °C), working-mode preset (Heating / DHW / Auto / Cooling), current water temperature
+- **Water heater entity** — DHW setpoint control (40–60 °C, step 1 °C), current water temperature, operation mode
 - **4 switch entities** — Heat Pump Power, Heating Curve, Backup Heater (HBH), DHW Storage
-- **2 number entities** — DHW Setpoint input
 - **Working Mode select** — direct mode control (Standby / Heating / Cooling / DHW / Auto)
-- **30+ sensor entities** — temperatures, pressures, compressor frequency, fans, current, voltage, EEV, working-time counters, COP estimates
-- **Mode Setting sensor** — configured mode (replaces cloud par4 sensor)
+- **30+ sensor entities** — temperatures, pressures, compressor frequency, electrical, COP estimates, working-time counters
+- **Connection binary sensor** — shows whether the TCP link to the W600 is live
+- **6 HA services** — control the pump from automations (`set_dhw_setpoint`, `set_mode`, `set_power`, `set_heating_curve`, `set_hbh`, `set_dhw_storage`)
+- **Repairs alert** — raises an issue in Settings → Repairs if the pump stops sending data for 5+ minutes, with troubleshooting steps; clears automatically on recovery
+- **Diagnostics** — download all sensor values as JSON from the device page (host/MN redacted)
+- **Options flow** — edit host, port, MN, and flow rate after setup via Settings → Devices & Services → Configure
 - **Local push** — entities update within seconds of each pump frame
 - **TCP reconnect** — exponential backoff on connection loss
 - **No cloud required** — all communication is direct TCP to the W600 bridge
@@ -51,6 +55,9 @@ Should also work with Neoheat and ECOtouch models using the same USR-W600 bridge
 | Bridge IP | `192.168.1.100` | IP address of your USR-W600 |
 | Port | `8899` | TCP port (W600 SocketA default) |
 | MN | `A1B2C3D4E5F6` | Unit identifier — the W600's WiFi MAC address (no colons), found on the W600 label or in its web UI under **Device Info → MAC** |
+| Flow rate | `0.29` | Water flow rate in L/s (used for COP estimation). Eko II 6=0.29, 9=0.43, 12=0.57, 15=0.71, 19=0.92 |
+
+Settings can be changed after setup via **Settings → Devices & Services → Heiko Heat Pump → Configure**.
 
 The MN is used to address CMD 0x05 write frames. The integration also learns the pump's own MN from its first CMD 0x01 frame and uses that for subsequent writes.
 
@@ -65,29 +72,51 @@ No changes to SocketB are needed for local-only use.
 
 ## Entities
 
-### Climate
+### Water Heater
 | Entity | Description |
 |--------|-------------|
-| Heat Pump | Thermostat — target = DHW setpoint, current = water outlet temp, preset = working mode |
+| DHW | Target = DHW setpoint (40–60 °C), current = water outlet temp (Tw), operation mode |
+
+### Binary Sensors
+| Entity | Description |
+|--------|-------------|
+| Connection | `ON` when the TCP socket to the W600 is live |
 
 ### Switches
 | Entity | Description |
 |--------|-------------|
 | Heat Pump Power | Power on/off |
-| Heating Curve | Weather-compensated curve on/off |
-| Backup Heater (HBH) | Auxiliary heater on/off |
+| Heating Curve | Weather-compensated heating curve on/off |
+| Backup Heater (HBH) | Auxiliary electric heater on/off |
 | DHW Storage | DHW storage mode on/off |
 
 ### Sensors (selection)
-| Key | Index | Description |
-|-----|-------|-------------|
-| Tw | 8 | Water / DHW outlet temperature |
-| Ta | 25 | Ambient air temperature |
-| Frequency | 21 | Compressor frequency (Hz) |
-| Current / Voltage | 31 / 32 | Electrical input |
-| Pd / Ps | 23 / 24 | High/low-side refrigerant pressure |
-| WorkingMode | 2 | Instantaneous operating state (CMD 0x01) |
-| Mode Setting | — | Configured working mode (CMD 0x02, par4 equivalent) |
+| Key | Description |
+|-----|-------------|
+| Hot Water / DHW Temperature (Tw) | Current DHW / water outlet temperature |
+| Ambient Air Temperature (Ta) | Outdoor ambient temperature |
+| Compressor Frequency | Compressor speed in Hz |
+| Electrical Power | Calculated V × I in watts |
+| COP Estimated | Thermal output / electrical input (when compressor running) |
+| High/Low-side Pressure (Pd/Ps) | Refrigerant circuit pressures |
+| Working Mode | Instantaneous operating state (Standby / Heating / DHW / …) |
+| Mode Setting | Configured working mode (equivalent to cloud par4) |
+| AH / HBH / HWTBH Working Time | Accumulated run-time counters |
+| Last Seen | Timestamp of last received frame (diagnostic) |
+| Reconnect Count | TCP reconnection counter since HA start (diagnostic) |
+
+> Several technical sensors (EEV, PWM, fan speeds, refrigerant temps) are created but **disabled by default**. Enable them individually via Settings → Entities if needed.
+
+### Services
+
+| Service | Parameters | Description |
+|---------|-----------|-------------|
+| `heiko_heatpump.set_dhw_setpoint` | `temperature` (40–60) | Set DHW target temperature |
+| `heiko_heatpump.set_mode` | `mode` (standby/heating/cooling/dhw/auto) | Set working mode |
+| `heiko_heatpump.set_power` | `power` (true/false) | Turn pump on or off |
+| `heiko_heatpump.set_heating_curve` | `enabled` (true/false) | Enable/disable weather curve |
+| `heiko_heatpump.set_hbh` | `enabled` (true/false) | Enable/disable backup heater |
+| `heiko_heatpump.set_dhw_storage` | `enabled` (true/false) | Enable/disable DHW storage |
 
 ## Diagnostic tools (`tools/`)
 
