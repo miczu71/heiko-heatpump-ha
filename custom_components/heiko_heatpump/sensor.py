@@ -25,6 +25,7 @@ from homeassistant.const import (
     UnitOfPower,
     UnitOfPressure,
     UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
@@ -71,6 +72,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         precision=1,
+        entity_registry_enabled_default=False,
     ),
 
     # ── Water / refrigerant circuit ───────────────────────────────────────────
@@ -97,6 +99,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         precision=1,
+        entity_registry_enabled_default=False,
     ),
     HeikoSensorEntityDescription(
         key="Tv2",
@@ -105,6 +108,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         precision=1,
+        entity_registry_enabled_default=False,
     ),
     HeikoSensorEntityDescription(
         key="Tr",
@@ -113,6 +117,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         precision=1,
+        entity_registry_enabled_default=False,
     ),
 
     # ── Ambient & unknown temperatures ────────────────────────────────────────
@@ -131,6 +136,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         precision=1,
+        entity_registry_enabled_default=False,
     ),
     HeikoSensorEntityDescription(
         key="Ts",
@@ -139,6 +145,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         precision=1,
+        entity_registry_enabled_default=False,
     ),
     HeikoSensorEntityDescription(
         key="Tp",
@@ -147,6 +154,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         precision=1,
+        entity_registry_enabled_default=False,
     ),
     # Heating setpoint: index 37, cloud par36 (floor/radiator circuit target)
     HeikoSensorEntityDescription(
@@ -191,6 +199,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         native_unit_of_measurement="steps",
         state_class=SensorStateClass.MEASUREMENT,
         precision=0,
+        entity_registry_enabled_default=False,
     ),
     HeikoSensorEntityDescription(
         key="Fan1",
@@ -198,6 +207,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         native_unit_of_measurement="rpm",
         state_class=SensorStateClass.MEASUREMENT,
         precision=0,
+        entity_registry_enabled_default=False,
     ),
     HeikoSensorEntityDescription(
         key="Fan2",
@@ -205,6 +215,7 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         native_unit_of_measurement="rpm",
         state_class=SensorStateClass.MEASUREMENT,
         precision=0,
+        entity_registry_enabled_default=False,
     ),
 
     # ── Pressures ─────────────────────────────────────────────────────────────
@@ -226,28 +237,29 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
     ),
 
     # ── State sensors ─────────────────────────────────────────────────────────
-    # WorkingMode: index 2, cloud par1 (Unit Current Working Mode)
-    # Values: 0=Standby, 1=DHW, 2=Heating, 3=Cooling, 4=DHW+Heating, 5=DHW+Cooling
+    # WorkingMode raw numeric — disabled by default; text version via HeikoWorkingModeTextEntity
     HeikoSensorEntityDescription(
         key="WorkingMode",
-        name="Working Mode",
+        name="Working Mode (raw)",
         state_class=SensorStateClass.MEASUREMENT,
         precision=0,
+        entity_registry_enabled_default=False,
     ),
-    # WaterPump: index 34, par33. Rendered as "on"/"off" by HeikoWaterPumpEntity below.
+    # WaterPump raw numeric — disabled by default; text version via HeikoWaterPumpEntity
     HeikoSensorEntityDescription(
         key="WaterPump",
-        name="Water Pump",
+        name="Water Pump (raw)",
         state_class=SensorStateClass.MEASUREMENT,
         precision=0,
+        entity_registry_enabled_default=False,
     ),
-    # PWM: index 13, par12
     HeikoSensorEntityDescription(
         key="PWM",
         name="PWM",
         native_unit_of_measurement="%",
         state_class=SensorStateClass.MEASUREMENT,
         precision=1,
+        entity_registry_enabled_default=False,
     ),
 
     # ── Calculated / derived sensors ──────────────────────────────────────────
@@ -288,12 +300,12 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         precision=0,
     ),
-    # COP Carnot: Tw_K / (Tw_K − Ta_K) — theoretical upper bound, always available
     HeikoSensorEntityDescription(
         key="COP_carnot",
         name="COP Carnot",
         state_class=SensorStateClass.MEASUREMENT,
         precision=2,
+        entity_registry_enabled_default=False,
     ),
     # COP estimated: Q_thermal / P_electrical — only when compressor running
     # Uses configured flow rate (default 0.29 L/s for Eko II 6)
@@ -308,21 +320,24 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
     HeikoSensorEntityDescription(
         key="Time_AH",
         name="AH Working Time",
-        native_unit_of_measurement="min",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.TOTAL_INCREASING,
         precision=0,
     ),
     HeikoSensorEntityDescription(
         key="Time_HBH",
         name="HBH Working Time",
-        native_unit_of_measurement="min",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.TOTAL_INCREASING,
         precision=0,
     ),
     HeikoSensorEntityDescription(
         key="Time_HWTBH",
         name="HWTBH Working Time",
-        native_unit_of_measurement="min",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.TOTAL_INCREASING,
         precision=0,
     ),
