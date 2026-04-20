@@ -208,11 +208,12 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
             return
 
         # ── Preserve slow-updating values from CMD 0x02 setdata frames ────────
-        # DHW_Setpoint is only updated every ~3 min from CMD 0x02.
-        # Carry it forward into every realtime update so it doesn't vanish
-        # between setdata frames.
-        if "DHW_Setpoint" in self._latest_data:
-            params["DHW_Setpoint"] = self._latest_data["DHW_Setpoint"]
+        # These keys are only set when a CMD 0x02 arrives. Carry them forward
+        # into every realtime update so they don't vanish between setdata frames.
+        for _key in ("DHW_Setpoint", "Power_State", "HeatingCurve_State",
+                     "HBH_State", "DHWStorage_State"):
+            if _key in self._latest_data:
+                params[_key] = self._latest_data[_key]
 
         # ── Calculated / derived sensors ──────────────────────────────────────
         tuo = params.get("Tuo")

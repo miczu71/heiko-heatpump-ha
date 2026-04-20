@@ -2,9 +2,10 @@
 Number platform for the Heiko Heat Pump integration.
 
 Exposes adjustable numeric controls:
-  - DHW setpoint     (write index 54, confirmed by traffic capture)
-  - Heating setpoint (write index 37, confirmed by traffic capture)
-    Note: heating setpoint is also controllable via the climate entity.
+  - DHW setpoint (write index 54, confirmed by traffic capture)
+
+Heating setpoint is read-only (depends on the heating curve) and is
+available as a sensor entity (sensor.heiko_heat_pump_heating_water_setpoint).
 """
 
 from __future__ import annotations
@@ -44,18 +45,6 @@ async def async_setup_entry(
             unit=UnitOfTemperature.CELSIUS,
             coordinator_read_key='DHW_Setpoint',  # populated from CMD 0x02 setdata frame
             write_coro="async_set_dhw_setpoint",
-        ),
-        HeikoNumberEntity(
-            coordinator, mn_str,
-            key="heating_setpoint",
-            name="Heating Setpoint",
-            icon="mdi:radiator",
-            min_value=20.0,
-            max_value=55.0,
-            step=0.5,
-            unit=UnitOfTemperature.CELSIUS,
-            coordinator_read_key="Setpoint",  # read back from realdata idx 37
-            write_coro="async_set_setpoint",
         ),
     ])
 
