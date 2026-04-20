@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.issue_registry import IssueSeverity, async_create_issue, async_delete_issue
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -45,6 +46,8 @@ _LOGGER = logging.getLogger(__name__)
 # How often to actively poll (CMD 0x06) as a fallback.
 # The pump pushes every 30 s; we poll at 60 s to avoid unnecessary traffic.
 POLL_INTERVAL = timedelta(seconds=60)
+_STALE_THRESHOLD = timedelta(minutes=5)
+_ISSUE_ID = "pump_not_responding"
 
 
 class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
@@ -119,6 +122,22 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         This method returns the most recently seen data so that the coordinator
         does not report a failure when the pump is merely slow to respond.
         """
+        if self._last_seen is not None:
+            age = dt_util.utcnow() - self._last_seen
+            if age > _STALE_THRESHOLD:
+                async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    _ISSUE_ID,
+                    is_fixable=False,
+                    severity=IssueSeverity.WARNING,
+                    translation_key=_ISSUE_ID,
+                    translation_placeholders={
+                        "minutes": str(int(age.total_seconds() / 60)),
+                        "last_seen": self._last_seen.astimezone().strftime("%H:%M:%S"),
+                    },
+                )
+
         if not self._client.connected:
             raise UpdateFailed("Not connected to heat pump bridge")
 
@@ -142,6 +161,7 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         CMD 0x02: setdata snapshot (every ~3 min) — reads DHW setpoint.
         """
         self._last_seen = dt_util.utcnow()
+        async_delete_issue(self.hass, DOMAIN, _ISSUE_ID)
         if frame.command == CMD_REALTIME:
             await self._handle_realtime(frame)
         elif frame.command == CMD_SETPARAMS:

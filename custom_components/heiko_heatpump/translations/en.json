@@ -1,0 +1,8 @@
+{
+  "issues": {
+    "pump_not_responding": {
+      "title": "Heat pump not responding",
+      "description": "No data received from the heat pump for {minutes} minutes (last frame at {last_seen}).\n\nTroubleshooting steps:\n1. Check that the USR-W600 bridge is powered on\n2. Check that the W600 is connected to WiFi (its LED should be solid)\n3. Check that the heat pump RS-485 cable is connected to the W600\n4. If the W600 recently rebooted, it may take up to 60 s for the pump to start pushing frames again\n\nThis alert will clear automatically when communication is restored."
+    }
+  }
+}
