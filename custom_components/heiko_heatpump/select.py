@@ -78,7 +78,9 @@ class HeikoModeSelectEntity(CoordinatorEntity[HeikoCoordinator], SelectEntity):
             return self._optimistic
         if not self.coordinator.data:
             return None
-        wm = self.coordinator.data.get("WorkingMode")
+        # Mode_Setdata comes from CMD 0x02 setdata (par4 convention: 0=Standby,
+        # 1=Heating, 2=Cooling, 3=DHW, 4=Auto) — same values as _OPTIONS above.
+        wm = self.coordinator.data.get("Mode_Setdata")
         if wm is None:
             return None
         return _VALUE_TO_LABEL.get(int(round(wm)))
@@ -108,6 +110,6 @@ class HeikoModeSelectEntity(CoordinatorEntity[HeikoCoordinator], SelectEntity):
     def _handle_coordinator_update(self) -> None:
         # Clear optimistic only once the live WorkingMode value is populated.
         # This avoids a brief flicker if the pump takes a cycle to confirm.
-        if self.coordinator.data and self.coordinator.data.get("WorkingMode") is not None:
+        if self.coordinator.data and self.coordinator.data.get("Mode_Setdata") is not None:
             self._optimistic = None
         self.async_write_ha_state()

@@ -164,6 +164,14 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
             changed = True
             _LOGGER.debug("CMD 0x02: Power = %.0f", v)
 
+        # Working mode (write-side convention) — idx 3: same as par4 in cloud API
+        # 0=Standby, 1=Heating, 2=Cooling, 3=DHW, 4=Auto
+        v = _read_float(3)
+        if v is not None:
+            self._latest_data["Mode_Setdata"] = float(round(v))
+            changed = True
+            _LOGGER.debug("CMD 0x02: Mode_Setdata = %.0f", v)
+
         # Heating curve — idx 23: 0.0=off, 1.0=on
         v = _read_float(23)
         if v is not None:
@@ -210,8 +218,8 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         # ── Preserve slow-updating values from CMD 0x02 setdata frames ────────
         # These keys are only set when a CMD 0x02 arrives. Carry them forward
         # into every realtime update so they don't vanish between setdata frames.
-        for _key in ("DHW_Setpoint", "Power_State", "HeatingCurve_State",
-                     "HBH_State", "DHWStorage_State"):
+        for _key in ("DHW_Setpoint", "Power_State", "Mode_Setdata",
+                     "HeatingCurve_State", "HBH_State", "DHWStorage_State"):
             if _key in self._latest_data:
                 params[_key] = self._latest_data[_key]
 

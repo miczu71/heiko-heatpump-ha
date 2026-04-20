@@ -344,7 +344,8 @@ async def async_setup_entry(
     ]
     # Specialised text-value entities
     entities.append(HeikoWaterPumpEntity(coordinator, mn_str))
-    entities.append(HeikoWorkingModeTextEntity(coordinator, mn_str))
+    entities.append(HeikoWorkingModeTextEntity(coordinator, mn_str))  # instantaneous state (CMD 0x01)
+    entities.append(HeikoModeSettingEntity(coordinator, mn_str))       # mode setting (CMD 0x02, replaces cloud par4)
     async_add_entities(entities)
 
 
@@ -461,6 +462,58 @@ class HeikoWorkingModeTextEntity(CoordinatorEntity[HeikoCoordinator], SensorEnti
         if self.coordinator.data is None:
             return {}
         raw = self.coordinator.data.get("WorkingMode")
+        return {"raw_value": raw} if raw is not None else {}
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
+
+
+# Mode setting labels — write-side convention, matches par4 from cloud setdata API:
+# 0=Standby, 1=Heating, 2=Cooling, 3=DHW, 4=Auto
+_MODE_SETDATA_NAMES: dict[int, str] = {
+    0: "Standby",
+    1: "Heating",
+    2: "Cooling",
+    3: "DHW",
+    4: "Auto",
+}
+
+
+class HeikoModeSettingEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
+    """
+    Configured working mode (the mode SETTING, not the instantaneous state).
+    Read from CMD 0x02 setdata idx=3 — equivalent to par4 in the cloud API.
+    Replaces the cloud-based sensor.hp_working_mode from multiscrape.
+    """
+
+    _attr_name = "Mode Setting"
+    _attr_icon = "mdi:cog-transfer"
+
+    def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{mn_str}_ModeSetting"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, mn_str)},
+            name="Heiko Heat Pump",
+            manufacturer=MANUFACTURER,
+            model=MODEL,
+        )
+
+    @property
+    def native_value(self) -> Optional[str]:
+        if self.coordinator.data is None:
+            return None
+        raw = self.coordinator.data.get("Mode_Setdata")
+        if raw is None:
+            return None
+        return _MODE_SETDATA_NAMES.get(int(round(raw)), f"Unknown ({int(round(raw))})")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        if self.coordinator.data is None:
+            return {}
+        raw = self.coordinator.data.get("Mode_Setdata")
         return {"raw_value": raw} if raw is not None else {}
 
     @callback

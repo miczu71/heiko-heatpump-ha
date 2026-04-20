@@ -108,7 +108,8 @@ class HeikoClimateEntity(CoordinatorEntity[HeikoCoordinator], ClimateEntity):
             return self._optimistic_mode
         if not self.coordinator.data:
             return None
-        wm = self.coordinator.data.get("WorkingMode")
+        # Mode_Setdata: 0=Standby (off), anything else = active
+        wm = self.coordinator.data.get("Mode_Setdata")
         if wm is None:
             return None
         return HVACMode.OFF if int(round(wm)) == 0 else HVACMode.HEAT
@@ -119,7 +120,7 @@ class HeikoClimateEntity(CoordinatorEntity[HeikoCoordinator], ClimateEntity):
             return self._optimistic_preset
         if not self.coordinator.data:
             return None
-        wm = self.coordinator.data.get("WorkingMode")
+        wm = self.coordinator.data.get("Mode_Setdata")
         if wm is None:
             return None
         return _WORKING_MODE_TO_PRESET.get(int(round(wm)))
@@ -185,7 +186,7 @@ class HeikoClimateEntity(CoordinatorEntity[HeikoCoordinator], ClimateEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         if self.coordinator.data:
-            if self.coordinator.data.get("WorkingMode") is not None:
+            if self.coordinator.data.get("Mode_Setdata") is not None:
                 self._optimistic_mode   = None
                 self._optimistic_preset = None
             if self.coordinator.data.get("DHW_Setpoint") is not None:
