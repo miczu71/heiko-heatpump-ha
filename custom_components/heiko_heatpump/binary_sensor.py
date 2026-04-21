@@ -12,7 +12,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, MANUFACTURER, MODEL
 from .coordinator import HeikoCoordinator
 
 
@@ -22,7 +22,8 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: HeikoCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([HeikoConnectionSensor(coordinator, entry)])
+    mn_str = entry.data["mn"]
+    async_add_entities([HeikoConnectionSensor(coordinator, mn_str)])
 
 
 class HeikoConnectionSensor(CoordinatorEntity[HeikoCoordinator], BinarySensorEntity):
@@ -32,11 +33,14 @@ class HeikoConnectionSensor(CoordinatorEntity[HeikoCoordinator], BinarySensorEnt
     _attr_has_entity_name = True
     _attr_name = "Connection"
 
-    def __init__(self, coordinator: HeikoCoordinator, entry: ConfigEntry) -> None:
+    def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"{entry.entry_id}_connection"
+        self._attr_unique_id = f"{mn_str}_connection"
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
+            identifiers={(DOMAIN, mn_str)},
+            name="Heiko Heat Pump",
+            manufacturer=MANUFACTURER,
+            model=MODEL,
         )
 
     @property

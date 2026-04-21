@@ -300,7 +300,9 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         if (tw is not None and tc is not None and power_w is not None
                 and frequency is not None and frequency > 5.0 and power_w > 50.0):
             dt_floor = tw - tc
-            if dt_floor > 0.1:
+            # Cap ΔT at 15 °C: a larger delta means Tw and Tc are from different
+            # circuits (e.g. DHW tank vs. heating return), producing a bogus COP.
+            if 0.5 < dt_floor <= 15.0:
                 q_thermal = self._flow_rate_lps * 4186.0 * dt_floor
                 params["COP_estimated"] = round(q_thermal / power_w, 2)
                 params["Thermal_power"] = round(q_thermal, 1)
