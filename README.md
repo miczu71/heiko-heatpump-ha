@@ -117,12 +117,12 @@ All values are read live from the pump's CMD 0x02 setdata frames. Entities show 
 | Entity | Write index | Range | Description |
 |--------|-------------|-------|-------------|
 | DHW Setpoint | 54 | 40–60 °C | Domestic hot water target temperature |
-| Heating Curve Parallel Shift | 120 | −9…+9 °C | Shifts the entire weather-comp curve up or down |
+| HC Parallel | 120 | −9…+9 °C | Heating curve parallel shift (shifts the entire weather-comp curve up or down) |
 | Heating/Cooling Stops ΔT | 19 | 1–15 °C | Water ΔT above setpoint at which heating/cooling stops |
 | Heating/Cooling Restarts ΔT | 20 | 1–15 °C | Water ΔT below setpoint at which heating/cooling restarts |
 | DHW Restart ΔT | 55 | 1–15 °C | DHW temperature drop that triggers reheating |
-| Curve Ambient Temp 1–5 | 24–28 | −25…+20 °C | Ambient temperature breakpoints of the heating curve |
-| Curve Water Temp 1–5 | 29–33 | 15–60 °C | Target water temperature breakpoints of the heating curve |
+| HC Amb 1–5 | 24–28 | −25…+20 °C | Ambient temperature breakpoints of the heating curve |
+| HC Water 1–5 | 29–33 | 15–60 °C | Target water temperature breakpoints of the heating curve |
 | Anti-Legionella Setpoint | 41 | 40–70 °C | Temperature the water must reach during the legionella cycle |
 | Anti-Legionella Duration | 42 | 1–120 min | How long the pump holds the setpoint |
 | Anti-Legionella Finish Time | 43 | 1–240 min | Cycle finish/timeout time |

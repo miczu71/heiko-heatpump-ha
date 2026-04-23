@@ -3,6 +3,14 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.7.1] - 2026-04-23
+
+### Changed
+- Heating curve number entities renamed for readability in the device card (names were truncated before the point number was visible):
+  - `Heating Curve Parallel Shift` → `HC Parallel`
+  - `Curve Ambient Temp 1–5` → `HC Amb 1–5`
+  - `Curve Water Temp 1–5` → `HC Water 1–5`
+
 ## [1.7.0] - 2026-04-23
 
 ### Added

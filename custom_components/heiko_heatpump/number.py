@@ -55,7 +55,7 @@ async def async_setup_entry(
         HeikoNumberEntity(
             coordinator, mn_str,
             key="curve_parallel",
-            name="Heating Curve Parallel Shift",
+            name="HC Parallel",
             icon="mdi:chart-line",
             min_value=-9.0,
             max_value=9.0,
@@ -107,7 +107,7 @@ async def async_setup_entry(
         entities.append(HeikoNumberEntity(
             coordinator, mn_str,
             key=f"curve_amb_{pt}",
-            name=f"Curve Ambient Temp {pt}",
+            name=f"HC Amb {pt}",
             icon="mdi:thermometer-lines",
             min_value=-25.0,
             max_value=20.0,
@@ -122,7 +122,7 @@ async def async_setup_entry(
         entities.append(HeikoNumberEntity(
             coordinator, mn_str,
             key=f"curve_water_{pt}",
-            name=f"Curve Water Temp {pt}",
+            name=f"HC Water {pt}",
             icon="mdi:water-thermometer",
             min_value=15.0,
             max_value=60.0,
