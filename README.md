@@ -17,8 +17,9 @@ Frame format and all write indices were confirmed by MITM-capturing live cloud�
 - **4 switch entities** — Heat Pump Power, Heating Curve, Backup Heater (HBH), DHW Storage
 - **Working Mode select** — direct mode control (Standby / Heating / Cooling / DHW / Auto)
 - **30+ sensor entities** — temperatures, pressures, compressor frequency, electrical, COP estimates, working-time counters
+- **14 number entities** — heating curve parallel shift, hysteresis ΔT settings, all 10 curve breakpoints; all read live from the pump (CMD 0x02 setdata)
 - **Connection binary sensor** — shows whether the TCP link to the W600 is live
-- **6 HA services** — control the pump from automations (`set_dhw_setpoint`, `set_mode`, `set_power`, `set_heating_curve`, `set_hbh`, `set_dhw_storage`)
+- **12 HA services** — control the pump from automations (mode, power, DHW, heating curve, ΔT thresholds, curve breakpoints)
 - **Repairs alert** — raises an issue in Settings → Repairs if the pump stops sending data for 5+ minutes, with troubleshooting steps; clears automatically on recovery
 - **Diagnostics** — download all sensor values as JSON from the device page (host/MN redacted)
 - **Options flow** — edit host, port, MN, and flow rate after setup via Settings → Devices & Services → Configure
@@ -107,16 +108,36 @@ No changes to SocketB are needed for local-only use.
 
 > Several technical sensors (EEV, PWM, fan speeds, refrigerant temps) are created but **disabled by default**. Enable them individually via Settings → Entities if needed.
 
+### Numbers
+
+All values are read live from the pump's CMD 0x02 setdata frames. Entities show `unavailable` until the first frame arrives (~3 min after connection).
+
+| Entity | Write index | Range | Description |
+|--------|-------------|-------|-------------|
+| DHW Setpoint | 54 | 40–60 °C | Domestic hot water target temperature |
+| Heating Curve Parallel Shift | 120 | −9…+9 °C | Shifts the entire weather-comp curve up or down |
+| Heating/Cooling Stops ΔT | 19 | 1–15 °C | Water ΔT above setpoint at which heating/cooling stops |
+| Heating/Cooling Restarts ΔT | 20 | 1–15 °C | Water ΔT below setpoint at which heating/cooling restarts |
+| DHW Restart ΔT | 55 | 1–15 °C | DHW temperature drop that triggers reheating |
+| Curve Ambient Temp 1–5 | 24–28 | −25…+20 °C | Ambient temperature breakpoints of the heating curve |
+| Curve Water Temp 1–5 | 29–33 | 15–60 °C | Target water temperature breakpoints of the heating curve |
+
 ### Services
 
 | Service | Parameters | Description |
 |---------|-----------|-------------|
-| `heiko_heatpump.set_dhw_setpoint` | `temperature` (40–60) | Set DHW target temperature |
+| `heiko_heatpump.set_dhw_setpoint` | `temperature` (40–60 °C) | Set DHW target temperature |
 | `heiko_heatpump.set_mode` | `mode` (standby/heating/cooling/dhw/auto) | Set working mode |
 | `heiko_heatpump.set_power` | `power` (true/false) | Turn pump on or off |
 | `heiko_heatpump.set_heating_curve` | `enabled` (true/false) | Enable/disable weather curve |
 | `heiko_heatpump.set_hbh` | `enabled` (true/false) | Enable/disable backup heater |
 | `heiko_heatpump.set_dhw_storage` | `enabled` (true/false) | Enable/disable DHW storage |
+| `heiko_heatpump.set_curve_parallel` | `shift` (−9…+9) | Parallel-shift the heating curve |
+| `heiko_heatpump.set_heating_stops_delta` | `delta` (1–15 °C) | Set heating/cooling stop ΔT |
+| `heiko_heatpump.set_heating_restarts_delta` | `delta` (1–15 °C) | Set heating/cooling restart ΔT |
+| `heiko_heatpump.set_dhw_restart_delta` | `delta` (1–15 °C) | Set DHW restart ΔT |
+| `heiko_heatpump.set_curve_ambient_temp` | `point` (1–5), `temperature` (−25…+20 °C) | Set one ambient breakpoint of the heating curve |
+| `heiko_heatpump.set_curve_water_temp` | `point` (1–5), `temperature` (15–60 °C) | Set one water-temp breakpoint of the heating curve |
 
 ## Diagnostic tools (`tools/`)
 
