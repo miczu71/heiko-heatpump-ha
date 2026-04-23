@@ -79,6 +79,67 @@ def decode_write_payload(payload: bytes) -> list[str]:
     return lines
 
 
+def _setdata_floats(payload: bytes) -> dict[int, float]:
+    """Extract all finite floats from a CMD 0x02 payload keyed by index."""
+    result: dict[int, float] = {}
+    for idx in range((len(payload) - 2) // 4):
+        off = 2 + idx * 4
+        if off + 4 > len(payload):
+            break
+        v = struct.unpack_from("<f", payload, off)[0]
+        if -1e6 < v < 1e6:
+            result[idx] = v
+    return result
+
+
+class SetdataTracker:
+    """
+    Tracks CMD 0x02 setdata frames and reports diffs.
+
+    First frame: prints a full baseline of all non-zero indices.
+    Subsequent frames: prints only indices whose value changed by > 0.09
+    (threshold avoids float-rounding noise while catching integer steps of 1).
+
+    Use this to identify write indices for settings changed on the physical
+    pump panel — those changes don't produce CMD 0x05 writes, only updated
+    CMD 0x02 setdata frames.
+    """
+
+    _THRESH = 0.09  # minimum change to report
+
+    def __init__(self) -> None:
+        self._baseline: dict[int, float] | None = None
+
+    def on_setdata(self, payload: bytes, log: Logger) -> None:
+        current = _setdata_floats(payload)
+
+        if self._baseline is None:
+            log.write("  ▶ SETDATA BASELINE — all non-zero indices:")
+            for idx in sorted(current):
+                if abs(current[idx]) > self._THRESH:
+                    name = IDX_NAME.get(idx, "?")
+                    log.write(f"    idx {idx:3d}  ({name:<16s})  {current[idx]:g}")
+            self._baseline = current
+            return
+
+        changed: dict[int, tuple[float, float]] = {}
+        all_keys = set(self._baseline) | set(current)
+        for idx in all_keys:
+            old = self._baseline.get(idx, 0.0)
+            new = current.get(idx, 0.0)
+            if abs(new - old) > self._THRESH:
+                changed[idx] = (old, new)
+
+        if changed:
+            log.write("  ★★★★★ SETDATA CHANGED (physical panel?) ★★★★★")
+            for idx in sorted(changed):
+                old, new = changed[idx]
+                name = IDX_NAME.get(idx, "?")
+                log.write(f"    idx {idx:3d}  ({name:<16s})  {old:g} → {new:g}")
+            self._baseline = current
+        # If unchanged, stay silent — CMD 0x02 arrives every ~3 min
+
+
 def crc_analysis(raw: bytes) -> str:
     if len(raw) < 16:
         return "frame too short for CRC analysis"
@@ -107,7 +168,12 @@ class Logger:
         self._fh.close()
 
 
-def log_frame(direction: str, raw: bytes, log: Logger) -> None:
+def log_frame(
+    direction: str,
+    raw: bytes,
+    log: Logger,
+    tracker: SetdataTracker | None = None,
+) -> None:
     frame = parse_frame(raw)
     arrow = "[PUMP→CLOUD]" if direction == "up" else "[CLOUD→PUMP]"
 
@@ -131,11 +197,13 @@ def log_frame(direction: str, raw: bytes, log: Logger) -> None:
         for line in decode_write_payload(frame.payload):
             log.write(f"  {line}")
 
+    elif frame.command == CMD_SETPARAMS and tracker is not None:
+        # Track setdata for physical-panel change detection
+        tracker.on_setdata(frame.payload, log)
+
     elif frame.command in (CMD_ACK_RT, CMD_ACK_SET, CMD_REQ_RT, CMD_REQ_SET):
         # Short frames — show raw so we can see what the cloud is emitting
         log.write(f"  raw: {raw.hex(' ')}")
-
-    # CMD 0x01/0x02: too noisy to dump, skip the raw
 
 
 async def pump_bytes(
@@ -143,6 +211,7 @@ async def pump_bytes(
     dst: asyncio.StreamWriter,
     direction: str,
     log: Logger,
+    tracker: SetdataTracker | None = None,
 ) -> None:
     """Copy bytes from src → dst, framing and logging along the way."""
     buf = FrameBuffer()
@@ -165,7 +234,7 @@ async def pump_bytes(
             log.write(f"{arrow} RAW {len(data)} B: {hex_preview}")
             # Parse for framed logging
             for raw in buf.feed(data):
-                log_frame(direction, raw, log)
+                log_frame(direction, raw, log, tracker)
     except (ConnectionResetError, BrokenPipeError):
         return
     except asyncio.CancelledError:
@@ -193,8 +262,12 @@ async def handle_client(
     log.write(f"Upstream connection established to {upstream_host}:{upstream_port}")
     log.write("=" * 78)
 
+    # Tracker for CMD 0x02 setdata diffs (physical-panel change detection).
+    # Only the pump→cloud direction carries CMD 0x02 frames.
+    tracker = SetdataTracker()
+
     # Two concurrent pumps: client→upstream (pump→cloud) and upstream→client (cloud→pump)
-    t_up   = asyncio.create_task(pump_bytes(reader, up_writer, "up", log))
+    t_up   = asyncio.create_task(pump_bytes(reader, up_writer, "up", log, tracker))
     t_down = asyncio.create_task(pump_bytes(up_reader, writer, "down", log))
     try:
         await asyncio.wait({t_up, t_down}, return_when=asyncio.FIRST_COMPLETED)
