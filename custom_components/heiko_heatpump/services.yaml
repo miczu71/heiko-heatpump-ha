@@ -98,7 +98,7 @@ set_heating_stops_delta:
         number:
           min: 1
           max: 15
-          step: 0.5
+          step: 1
           unit_of_measurement: "°C"
 
 set_heating_restarts_delta:
@@ -113,7 +113,7 @@ set_heating_restarts_delta:
         number:
           min: 1
           max: 15
-          step: 0.5
+          step: 1
           unit_of_measurement: "°C"
 
 set_dhw_restart_delta:
@@ -128,7 +128,7 @@ set_dhw_restart_delta:
         number:
           min: 1
           max: 15
-          step: 0.5
+          step: 1
           unit_of_measurement: "°C"
 
 set_curve_ambient_temp:
@@ -152,7 +152,7 @@ set_curve_ambient_temp:
         number:
           min: -25
           max: 20
-          step: 0.5
+          step: 1
           unit_of_measurement: "°C"
 
 set_curve_water_temp:
@@ -176,7 +176,7 @@ set_curve_water_temp:
         number:
           min: 15
           max: 60
-          step: 0.5
+          step: 1
           unit_of_measurement: "°C"
 
 set_anti_leg_program:
