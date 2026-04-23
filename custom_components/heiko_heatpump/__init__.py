@@ -69,6 +69,36 @@ def _register_services(hass: HomeAssistant) -> None:
         for coord in _all_coordinators(hass):
             await coord.async_set_dhw_storage(call.data["enabled"])
 
+    async def set_curve_parallel(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_curve_parallel(call.data["shift"])
+
+    async def set_heating_stops_delta(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_heating_stops_dt(call.data["delta"])
+
+    async def set_heating_restarts_delta(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_heating_restarts_dt(call.data["delta"])
+
+    async def set_dhw_restart_delta(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_dhw_restart_dt(call.data["delta"])
+
+    async def set_curve_ambient_temp(call: ServiceCall) -> None:
+        point = int(call.data["point"])
+        value = float(call.data["temperature"])
+        for coord in _all_coordinators(hass):
+            method = getattr(coord, f"async_set_curve_amb_{point}")
+            await method(value)
+
+    async def set_curve_water_temp(call: ServiceCall) -> None:
+        point = int(call.data["point"])
+        value = float(call.data["temperature"])
+        for coord in _all_coordinators(hass):
+            method = getattr(coord, f"async_set_curve_water_{point}")
+            await method(value)
+
     hass.services.async_register(
         DOMAIN, "set_dhw_setpoint", set_dhw_setpoint,
         schema=vol.Schema({
@@ -99,6 +129,44 @@ def _register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, "set_dhw_storage", set_dhw_storage,
         schema=vol.Schema({vol.Required("enabled"): cv.boolean}),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_curve_parallel", set_curve_parallel,
+        schema=vol.Schema({
+            vol.Required("shift"): vol.All(vol.Coerce(float), vol.Range(min=-9, max=9)),
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_heating_stops_delta", set_heating_stops_delta,
+        schema=vol.Schema({
+            vol.Required("delta"): vol.All(vol.Coerce(float), vol.Range(min=1, max=15)),
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_heating_restarts_delta", set_heating_restarts_delta,
+        schema=vol.Schema({
+            vol.Required("delta"): vol.All(vol.Coerce(float), vol.Range(min=1, max=15)),
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_dhw_restart_delta", set_dhw_restart_delta,
+        schema=vol.Schema({
+            vol.Required("delta"): vol.All(vol.Coerce(float), vol.Range(min=1, max=15)),
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_curve_ambient_temp", set_curve_ambient_temp,
+        schema=vol.Schema({
+            vol.Required("point"): vol.All(int, vol.Range(min=1, max=5)),
+            vol.Required("temperature"): vol.All(vol.Coerce(float), vol.Range(min=-25, max=20)),
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_curve_water_temp", set_curve_water_temp,
+        schema=vol.Schema({
+            vol.Required("point"): vol.All(int, vol.Range(min=1, max=5)),
+            vol.Required("temperature"): vol.All(vol.Coerce(float), vol.Range(min=15, max=60)),
+        }),
     )
 
 
@@ -138,8 +206,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator: HeikoCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
         await coordinator.async_stop()
         if not hass.data[DOMAIN]:
-            for svc in ("set_dhw_setpoint", "set_mode", "set_power",
-                        "set_heating_curve", "set_hbh", "set_dhw_storage"):
+            for svc in (
+                "set_dhw_setpoint", "set_mode", "set_power",
+                "set_heating_curve", "set_hbh", "set_dhw_storage",
+                "set_curve_parallel", "set_heating_stops_delta",
+                "set_heating_restarts_delta", "set_dhw_restart_delta",
+                "set_curve_ambient_temp", "set_curve_water_temp",
+            ):
                 hass.services.async_remove(DOMAIN, svc)
 
     return unload_ok

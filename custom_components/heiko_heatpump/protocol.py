@@ -444,13 +444,21 @@ def build_write_param(
 #   Heating  → index 37 (setdata par38: °C, confirmed ✓)
 #   DHW      → index 54 (setdata par55: °C)
 
-WRITE_IDX_POWER         = 0    # 0.0=off, 1.0=on  (confirmed MITM)
-WRITE_IDX_MODE          = 3    # 0=standby,1=heating,2=cooling,3=DHW,4=auto
-WRITE_IDX_HEATING_CURVE = 23   # 0.0=off, 1.0=on  (confirmed MITM)
-WRITE_IDX_HBH           = 50   # backup heater: 0.0=enabled, 1.0=disabled (inverted, confirmed MITM idx=0x32)
-WRITE_IDX_HEATING       = 37   # °C  (confirmed MITM)
-WRITE_IDX_DHW           = 54   # °C  (confirmed MITM)
-WRITE_IDX_DHW_STORAGE   = 62   # DHW storage: 0.0=off, 1.0=on  (confirmed MITM)
+WRITE_IDX_POWER              = 0    # 0.0=off, 1.0=on  (confirmed MITM)
+WRITE_IDX_MODE               = 3    # 0=standby,1=heating,2=cooling,3=DHW,4=auto
+WRITE_IDX_HEATING_STOPS_DT   = 19   # °C ΔT at which heating/cooling stops  (confirmed MITM)
+WRITE_IDX_HEATING_RESTARTS_DT= 20   # °C ΔT at which heating/cooling restarts (confirmed MITM)
+# Heating curve breakpoints — ambient temps (confirmed MITM)
+WRITE_IDX_CURVE_AMB          = [24, 25, 26, 27, 28]   # points 1-5
+# Heating curve breakpoints — target water temps (confirmed MITM)
+WRITE_IDX_CURVE_WATER        = [29, 30, 31, 32, 33]   # points A-E (1-5)
+WRITE_IDX_HEATING            = 37   # °C  (confirmed MITM)
+WRITE_IDX_HEATING_CURVE      = 23   # 0.0=off, 1.0=on  (confirmed MITM)
+WRITE_IDX_HBH                = 50   # backup heater: 0.0=enabled, 1.0=disabled (inverted, confirmed MITM)
+WRITE_IDX_DHW                = 54   # °C  (confirmed MITM)
+WRITE_IDX_DHW_RESTART_DT     = 55   # °C ΔT at which DHW reheating restarts  (confirmed MITM)
+WRITE_IDX_DHW_STORAGE        = 62   # DHW storage: 0.0=off, 1.0=on  (confirmed MITM)
+WRITE_IDX_CURVE_PARALLEL     = 120  # Heating curve parallel shift °C  (confirmed MITM)
 
 # Working mode values (confirmed from traffic capture)
 MODE_STANDBY  = 0   # likely — power-off state
@@ -506,6 +514,40 @@ def build_set_dhw_setpoint(mn: bytes, setpoint_celsius: float, **kwargs) -> byte
     Confirmed by traffic capture. Typical range 40–60°C.
     """
     return build_write_param(mn, WRITE_IDX_DHW, setpoint_celsius, **kwargs)
+
+
+def build_set_curve_parallel(mn: bytes, shift: float, **kwargs) -> bytes:
+    """Heating curve parallel shift. Write index 120. Range −9 to +9. Confirmed MITM."""
+    return build_write_param(mn, WRITE_IDX_CURVE_PARALLEL, float(shift), **kwargs)
+
+
+def build_set_heating_stops_dt(mn: bytes, delta: float, **kwargs) -> bytes:
+    """Heating/cooling stop ΔT. Write index 19. Confirmed MITM."""
+    return build_write_param(mn, WRITE_IDX_HEATING_STOPS_DT, float(delta), **kwargs)
+
+
+def build_set_heating_restarts_dt(mn: bytes, delta: float, **kwargs) -> bytes:
+    """Heating/cooling restart ΔT. Write index 20. Confirmed MITM."""
+    return build_write_param(mn, WRITE_IDX_HEATING_RESTARTS_DT, float(delta), **kwargs)
+
+
+def build_set_dhw_restart_dt(mn: bytes, delta: float, **kwargs) -> bytes:
+    """DHW restart ΔT. Write index 55. Confirmed MITM."""
+    return build_write_param(mn, WRITE_IDX_DHW_RESTART_DT, float(delta), **kwargs)
+
+
+def build_set_curve_amb_point(mn: bytes, point: int, value: float, **kwargs) -> bytes:
+    """Heating curve ambient temperature breakpoint. point=1..5 → index 24..28. Confirmed MITM."""
+    if not 1 <= point <= 5:
+        raise ValueError(f"Curve point must be 1–5, got {point}")
+    return build_write_param(mn, WRITE_IDX_CURVE_AMB[point - 1], float(value), **kwargs)
+
+
+def build_set_curve_water_point(mn: bytes, point: int, value: float, **kwargs) -> bytes:
+    """Heating curve water temperature breakpoint. point=1..5 → index 29..33. Confirmed MITM."""
+    if not 1 <= point <= 5:
+        raise ValueError(f"Curve point must be 1–5, got {point}")
+    return build_write_param(mn, WRITE_IDX_CURVE_WATER[point - 1], float(value), **kwargs)
 
 
 # ── Frame stream parser ────────────────────────────────────────────────────────

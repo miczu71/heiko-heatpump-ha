@@ -70,3 +70,111 @@ set_dhw_storage:
       required: true
       selector:
         boolean:
+
+set_curve_parallel:
+  name: Set Heating Curve Parallel Shift
+  description: Shift the entire heating curve up or down by a fixed offset (−9 to +9 °C).
+  fields:
+    shift:
+      name: Shift
+      description: Parallel shift value in °C (−9 to +9).
+      required: true
+      selector:
+        number:
+          min: -9
+          max: 9
+          step: 1
+          unit_of_measurement: "°C"
+
+set_heating_stops_delta:
+  name: Set Heating/Cooling Stop ΔT
+  description: Water temperature ΔT above setpoint at which heating (or cooling) stops.
+  fields:
+    delta:
+      name: Delta
+      description: ΔT in °C (1–15).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 15
+          step: 0.5
+          unit_of_measurement: "°C"
+
+set_heating_restarts_delta:
+  name: Set Heating/Cooling Restart ΔT
+  description: Water temperature ΔT below setpoint at which heating (or cooling) restarts.
+  fields:
+    delta:
+      name: Delta
+      description: ΔT in °C (1–15).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 15
+          step: 0.5
+          unit_of_measurement: "°C"
+
+set_dhw_restart_delta:
+  name: Set DHW Restart ΔT
+  description: DHW temperature drop ΔT below setpoint at which DHW reheating restarts.
+  fields:
+    delta:
+      name: Delta
+      description: ΔT in °C (1–15).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 15
+          step: 0.5
+          unit_of_measurement: "°C"
+
+set_curve_ambient_temp:
+  name: Set Heating Curve Ambient Breakpoint
+  description: Set one of the 5 ambient temperature breakpoints of the heating curve.
+  fields:
+    point:
+      name: Point
+      description: Breakpoint number (1–5, coldest to warmest).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 5
+          step: 1
+    temperature:
+      name: Temperature
+      description: Ambient temperature in °C (−25 to +20).
+      required: true
+      selector:
+        number:
+          min: -25
+          max: 20
+          step: 0.5
+          unit_of_measurement: "°C"
+
+set_curve_water_temp:
+  name: Set Heating Curve Water Breakpoint
+  description: Set one of the 5 target water temperature breakpoints of the heating curve.
+  fields:
+    point:
+      name: Point
+      description: Breakpoint number (1–5, corresponding to ambient breakpoints 1–5).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 5
+          step: 1
+    temperature:
+      name: Temperature
+      description: Target water temperature in °C (15–60).
+      required: true
+      selector:
+        number:
+          min: 15
+          max: 60
+          step: 0.5
+          unit_of_measurement: "°C"

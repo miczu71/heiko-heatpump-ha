@@ -1,11 +1,17 @@
 """
 Number platform for the Heiko Heat Pump integration.
 
-Exposes adjustable numeric controls:
-  - DHW setpoint (write index 54, confirmed by traffic capture)
+Exposes adjustable numeric controls read from CMD 0x02 setdata frames:
+  - DHW setpoint (write index 54)
+  - Heating curve parallel shift (write index 120)
+  - Heating/cooling stop ΔT (write index 19)
+  - Heating/cooling restart ΔT (write index 20)
+  - DHW restart ΔT (write index 55)
+  - Heating curve ambient breakpoints 1–5 (write indices 24–28)
+  - Heating curve water temp breakpoints 1–5 (write indices 29–33)
 
-Heating setpoint is read-only (depends on the heating curve) and is
-available as a sensor entity (sensor.heiko_heat_pump_heating_water_setpoint).
+All values are always read from the pump via CMD 0x02; entities show None
+until the first setdata frame arrives (~3 min after connection).
 """
 
 from __future__ import annotations
@@ -33,7 +39,7 @@ async def async_setup_entry(
 ) -> None:
     coordinator: HeikoCoordinator = hass.data[DOMAIN][entry.entry_id]
     mn_str = entry.data["mn"]
-    async_add_entities([
+    entities: list[HeikoNumberEntity] = [
         HeikoNumberEntity(
             coordinator, mn_str,
             key="dhw_setpoint",
@@ -43,10 +49,90 @@ async def async_setup_entry(
             max_value=60.0,
             step=0.5,
             unit=UnitOfTemperature.CELSIUS,
-            coordinator_read_key='DHW_Setpoint',  # populated from CMD 0x02 setdata frame
+            coordinator_read_key="DHW_Setpoint",
             write_coro="async_set_dhw_setpoint",
         ),
-    ])
+        HeikoNumberEntity(
+            coordinator, mn_str,
+            key="curve_parallel",
+            name="Heating Curve Parallel Shift",
+            icon="mdi:chart-line",
+            min_value=-9.0,
+            max_value=9.0,
+            step=1.0,
+            unit=UnitOfTemperature.CELSIUS,
+            coordinator_read_key="Curve_Parallel",
+            write_coro="async_set_curve_parallel",
+        ),
+        HeikoNumberEntity(
+            coordinator, mn_str,
+            key="heating_stops_dt",
+            name="Heating Stops ΔT",
+            icon="mdi:thermometer-chevron-up",
+            min_value=1.0,
+            max_value=15.0,
+            step=0.5,
+            unit=UnitOfTemperature.CELSIUS,
+            coordinator_read_key="Heating_Stops_DT",
+            write_coro="async_set_heating_stops_dt",
+        ),
+        HeikoNumberEntity(
+            coordinator, mn_str,
+            key="heating_restarts_dt",
+            name="Heating Restarts ΔT",
+            icon="mdi:thermometer-chevron-down",
+            min_value=1.0,
+            max_value=15.0,
+            step=0.5,
+            unit=UnitOfTemperature.CELSIUS,
+            coordinator_read_key="Heating_Restarts_DT",
+            write_coro="async_set_heating_restarts_dt",
+        ),
+        HeikoNumberEntity(
+            coordinator, mn_str,
+            key="dhw_restart_dt",
+            name="DHW Restart ΔT",
+            icon="mdi:thermometer-water",
+            min_value=1.0,
+            max_value=15.0,
+            step=0.5,
+            unit=UnitOfTemperature.CELSIUS,
+            coordinator_read_key="DHW_Restart_DT",
+            write_coro="async_set_dhw_restart_dt",
+        ),
+    ]
+
+    # Heating curve ambient temperature breakpoints (points 1–5)
+    for pt in range(1, 6):
+        entities.append(HeikoNumberEntity(
+            coordinator, mn_str,
+            key=f"curve_amb_{pt}",
+            name=f"Curve Ambient Temp {pt}",
+            icon="mdi:thermometer-lines",
+            min_value=-25.0,
+            max_value=20.0,
+            step=0.5,
+            unit=UnitOfTemperature.CELSIUS,
+            coordinator_read_key=f"Curve_Amb_{pt}",
+            write_coro=f"async_set_curve_amb_{pt}",
+        ))
+
+    # Heating curve water temperature breakpoints (points 1–5)
+    for pt in range(1, 6):
+        entities.append(HeikoNumberEntity(
+            coordinator, mn_str,
+            key=f"curve_water_{pt}",
+            name=f"Curve Water Temp {pt}",
+            icon="mdi:water-thermometer",
+            min_value=15.0,
+            max_value=60.0,
+            step=0.5,
+            unit=UnitOfTemperature.CELSIUS,
+            coordinator_read_key=f"Curve_Water_{pt}",
+            write_coro=f"async_set_curve_water_{pt}",
+        ))
+
+    async_add_entities(entities)
 
 
 class HeikoNumberEntity(CoordinatorEntity[HeikoCoordinator], NumberEntity):
