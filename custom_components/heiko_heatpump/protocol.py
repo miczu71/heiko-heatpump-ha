@@ -460,6 +460,12 @@ WRITE_IDX_DHW_RESTART_DT     = 55   # °C ΔT at which DHW reheating restarts  (
 WRITE_IDX_DHW_STORAGE        = 62   # DHW storage: 0.0=off, 1.0=on  (confirmed MITM)
 WRITE_IDX_CURVE_PARALLEL     = 120  # Heating curve parallel shift °C  (confirmed MITM)
 
+# Anti-Legionella programme — confirmed by CMD 0x05 MITM capture (setdata idx == write idx)
+WRITE_IDX_ANTI_LEG_PROGRAM   = 40   # 0.0=disabled, 1.0=enabled  (confirmed MITM)
+WRITE_IDX_ANTI_LEG_SETPOINT  = 41   # °C target temperature (typical 70°C, confirmed MITM)
+WRITE_IDX_ANTI_LEG_DURATION  = 42   # minutes to hold setpoint (typical 20 min, confirmed MITM)
+WRITE_IDX_ANTI_LEG_FINISH    = 43   # minutes finish-time / cycle timeout (typical 120 min, confirmed MITM)
+
 # Working mode values (confirmed from traffic capture)
 MODE_STANDBY  = 0   # likely — power-off state
 MODE_HEATING  = 1   # confirmed ✓
@@ -548,6 +554,26 @@ def build_set_curve_water_point(mn: bytes, point: int, value: float, **kwargs) -
     if not 1 <= point <= 5:
         raise ValueError(f"Curve point must be 1–5, got {point}")
     return build_write_param(mn, WRITE_IDX_CURVE_WATER[point - 1], float(value), **kwargs)
+
+
+def build_set_anti_leg_program(mn: bytes, on: bool, **kwargs) -> bytes:
+    """Enable/disable Anti-Legionella programme. Write index 40. Confirmed MITM."""
+    return build_write_param(mn, WRITE_IDX_ANTI_LEG_PROGRAM, 1.0 if on else 0.0, **kwargs)
+
+
+def build_set_anti_leg_setpoint(mn: bytes, setpoint: float, **kwargs) -> bytes:
+    """Set Anti-Legionella target temperature. Write index 41. Confirmed MITM."""
+    return build_write_param(mn, WRITE_IDX_ANTI_LEG_SETPOINT, float(setpoint), **kwargs)
+
+
+def build_set_anti_leg_duration(mn: bytes, minutes: float, **kwargs) -> bytes:
+    """Set Anti-Legionella hold duration in minutes. Write index 42. Confirmed MITM."""
+    return build_write_param(mn, WRITE_IDX_ANTI_LEG_DURATION, float(minutes), **kwargs)
+
+
+def build_set_anti_leg_finish(mn: bytes, minutes: float, **kwargs) -> bytes:
+    """Set Anti-Legionella finish time in minutes. Write index 43. Confirmed MITM."""
+    return build_write_param(mn, WRITE_IDX_ANTI_LEG_FINISH, float(minutes), **kwargs)
 
 
 # ── Frame stream parser ────────────────────────────────────────────────────────

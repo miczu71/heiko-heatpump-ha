@@ -14,12 +14,12 @@ Frame format and all write indices were confirmed by MITM-capturing live cloud�
 ## Features
 
 - **Water heater entity** — DHW setpoint control (40–60 °C, step 1 °C), current water temperature, operation mode
-- **4 switch entities** — Heat Pump Power, Heating Curve, Backup Heater (HBH), DHW Storage
+- **5 switch entities** — Heat Pump Power, Heating Curve, Backup Heater (HBH), DHW Storage, Anti-Legionella Program
 - **Working Mode select** — direct mode control (Standby / Heating / Cooling / DHW / Auto)
 - **30+ sensor entities** — temperatures, pressures, compressor frequency, electrical, COP estimates, working-time counters
-- **14 number entities** — heating curve parallel shift, hysteresis ΔT settings, all 10 curve breakpoints; all read live from the pump (CMD 0x02 setdata)
-- **Connection binary sensor** — shows whether the TCP link to the W600 is live
-- **12 HA services** — control the pump from automations (mode, power, DHW, heating curve, ΔT thresholds, curve breakpoints)
+- **17 number entities** — heating curve parallel shift, hysteresis ΔT settings, all 10 curve breakpoints, Anti-Legionella setpoint/duration/finish time; all read live from the pump (CMD 0x02 setdata)
+- **2 binary sensors** — Connection (TCP link state) and Anti-Legionella Running (cycle active indicator)
+- **16 HA services** — control the pump from automations (mode, power, DHW, heating curve, ΔT thresholds, curve breakpoints, Anti-Legionella settings)
 - **Repairs alert** — raises an issue in Settings → Repairs if the pump stops sending data for 5+ minutes, with troubleshooting steps; clears automatically on recovery
 - **Diagnostics** — download all sensor values as JSON from the device page (host/MN redacted)
 - **Options flow** — edit host, port, MN, and flow rate after setup via Settings → Devices & Services → Configure
@@ -82,6 +82,7 @@ No changes to SocketB are needed for local-only use.
 | Entity | Description |
 |--------|-------------|
 | Connection | `ON` when the TCP socket to the W600 is live |
+| Anti-Legionella Running | `ON` when the programme is enabled and the pump is in DHW mode (best available indicator of a running cycle) |
 
 ### Switches
 | Entity | Description |
@@ -90,6 +91,7 @@ No changes to SocketB are needed for local-only use.
 | Heating Curve | Weather-compensated heating curve on/off |
 | Backup Heater (HBH) | Auxiliary electric heater on/off |
 | DHW Storage | DHW storage mode on/off |
+| Anti-Legionella Program | Enable/disable the legionella protection cycle |
 
 ### Sensors (selection)
 | Key | Description |
@@ -121,6 +123,9 @@ All values are read live from the pump's CMD 0x02 setdata frames. Entities show 
 | DHW Restart ΔT | 55 | 1–15 °C | DHW temperature drop that triggers reheating |
 | Curve Ambient Temp 1–5 | 24–28 | −25…+20 °C | Ambient temperature breakpoints of the heating curve |
 | Curve Water Temp 1–5 | 29–33 | 15–60 °C | Target water temperature breakpoints of the heating curve |
+| Anti-Legionella Setpoint | 41 | 40–70 °C | Temperature the water must reach during the legionella cycle |
+| Anti-Legionella Duration | 42 | 1–120 min | How long the pump holds the setpoint |
+| Anti-Legionella Finish Time | 43 | 1–240 min | Cycle finish/timeout time |
 
 ### Services
 
@@ -138,6 +143,10 @@ All values are read live from the pump's CMD 0x02 setdata frames. Entities show 
 | `heiko_heatpump.set_dhw_restart_delta` | `delta` (1–15 °C) | Set DHW restart ΔT |
 | `heiko_heatpump.set_curve_ambient_temp` | `point` (1–5), `temperature` (−25…+20 °C) | Set one ambient breakpoint of the heating curve |
 | `heiko_heatpump.set_curve_water_temp` | `point` (1–5), `temperature` (15–60 °C) | Set one water-temp breakpoint of the heating curve |
+| `heiko_heatpump.set_anti_leg_program` | `enabled` (true/false) | Enable/disable the Anti-Legionella programme |
+| `heiko_heatpump.set_anti_leg_setpoint` | `temperature` (40–70 °C) | Set legionella kill temperature |
+| `heiko_heatpump.set_anti_leg_duration` | `minutes` (1–120) | Set how long to hold the setpoint |
+| `heiko_heatpump.set_anti_leg_finish` | `minutes` (1–240) | Set cycle finish/timeout time |
 
 ## Diagnostic tools (`tools/`)
 

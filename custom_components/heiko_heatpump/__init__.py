@@ -99,6 +99,22 @@ def _register_services(hass: HomeAssistant) -> None:
             method = getattr(coord, f"async_set_curve_water_{point}")
             await method(value)
 
+    async def set_anti_leg_program(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_anti_leg_program(call.data["enabled"])
+
+    async def set_anti_leg_setpoint(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_anti_leg_setpoint(call.data["temperature"])
+
+    async def set_anti_leg_duration(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_anti_leg_duration(call.data["minutes"])
+
+    async def set_anti_leg_finish(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_anti_leg_finish(call.data["minutes"])
+
     hass.services.async_register(
         DOMAIN, "set_dhw_setpoint", set_dhw_setpoint,
         schema=vol.Schema({
@@ -168,6 +184,28 @@ def _register_services(hass: HomeAssistant) -> None:
             vol.Required("temperature"): vol.All(vol.Coerce(float), vol.Range(min=15, max=60)),
         }),
     )
+    hass.services.async_register(
+        DOMAIN, "set_anti_leg_program", set_anti_leg_program,
+        schema=vol.Schema({vol.Required("enabled"): cv.boolean}),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_anti_leg_setpoint", set_anti_leg_setpoint,
+        schema=vol.Schema({
+            vol.Required("temperature"): vol.All(vol.Coerce(float), vol.Range(min=40, max=70)),
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_anti_leg_duration", set_anti_leg_duration,
+        schema=vol.Schema({
+            vol.Required("minutes"): vol.All(vol.Coerce(float), vol.Range(min=1, max=120)),
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_anti_leg_finish", set_anti_leg_finish,
+        schema=vol.Schema({
+            vol.Required("minutes"): vol.All(vol.Coerce(float), vol.Range(min=1, max=240)),
+        }),
+    )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -212,6 +250,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "set_curve_parallel", "set_heating_stops_delta",
                 "set_heating_restarts_delta", "set_dhw_restart_delta",
                 "set_curve_ambient_temp", "set_curve_water_temp",
+                "set_anti_leg_program", "set_anti_leg_setpoint",
+                "set_anti_leg_duration", "set_anti_leg_finish",
             ):
                 hass.services.async_remove(DOMAIN, svc)
 

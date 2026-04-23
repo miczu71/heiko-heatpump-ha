@@ -3,6 +3,35 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.7.0] - 2026-04-23
+
+### Added
+
+- **Anti-Legionella switch** — `switch.anti_legionella_program` — enables/disables the legionella protection programme (write index 40; confirmed by CMD 0x05 MITM capture)
+- **3 Anti-Legionella number entities** — all values read live from CMD 0x02 setdata; show `unavailable` until first setdata frame (~3 min):
+
+  | Entity | Write index | Range | Description |
+  |--------|-------------|-------|-------------|
+  | Anti-Legionella Setpoint | 41 | 40–70 °C | Temperature the water must reach during the cycle |
+  | Anti-Legionella Duration | 42 | 1–120 min | How long the pump holds the setpoint |
+  | Anti-Legionella Finish Time | 43 | 1–240 min | Cycle finish/timeout time |
+
+- **Anti-Legionella Running binary sensor** — `binary_sensor.anti_legionella_running` — `ON` when the programme is enabled (Anti_Leg_Program = 1) and the pump is in DHW mode (WorkingMode = 1), which is the observable state change when the legionella cycle fires
+- **4 new HA services**:
+
+  | Service | Parameters | Description |
+  |---------|-----------|-------------|
+  | `heiko_heatpump.set_anti_leg_program` | `enabled` (true/false) | Enable/disable the programme |
+  | `heiko_heatpump.set_anti_leg_setpoint` | `temperature` (40–70 °C) | Set legionella kill temperature |
+  | `heiko_heatpump.set_anti_leg_duration` | `minutes` (1–120) | Set hold duration |
+  | `heiko_heatpump.set_anti_leg_finish` | `minutes` (1–240) | Set cycle finish time |
+
+### Notes
+
+- Write indices 40–43 confirmed by CMD 0x05 MITM capture of cloud→pump traffic; setdata baseline confirmed live values (setpoint 70°C, duration 20 min, finish time 120 min)
+- The **day/hour schedule** for the legionella cycle is stored in the WinCE panel's firmware only and is not accessible via the RS-485 protocol. It cannot be read or written by this integration
+- The Running sensor cannot distinguish between a legionella cycle and a user-initiated DHW session; both produce WorkingMode = 1
+
 ## [1.6.0] - 2026-04-23
 
 ### Added

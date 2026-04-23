@@ -178,3 +178,59 @@ set_curve_water_temp:
           max: 60
           step: 0.5
           unit_of_measurement: "°C"
+
+set_anti_leg_program:
+  name: Set Anti-Legionella Program
+  description: Enable or disable the Anti-Legionella programme.
+  fields:
+    enabled:
+      name: Enabled
+      description: true = programme on, false = programme off.
+      required: true
+      selector:
+        boolean:
+
+set_anti_leg_setpoint:
+  name: Set Anti-Legionella Setpoint
+  description: Set the target temperature for the Anti-Legionella cycle (40–70 °C).
+  fields:
+    temperature:
+      name: Temperature
+      description: Target temperature in °C (40–70). Typical legionella kill temperature is 70°C.
+      required: true
+      selector:
+        number:
+          min: 40
+          max: 70
+          step: 1
+          unit_of_measurement: "°C"
+
+set_anti_leg_duration:
+  name: Set Anti-Legionella Duration
+  description: Set how long the pump holds the Anti-Legionella setpoint temperature (1–120 min).
+  fields:
+    minutes:
+      name: Duration
+      description: Duration in minutes (1–120).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 120
+          step: 1
+          unit_of_measurement: "min"
+
+set_anti_leg_finish:
+  name: Set Anti-Legionella Finish Time
+  description: Set the Anti-Legionella cycle finish/timeout time (1–240 min).
+  fields:
+    minutes:
+      name: Finish time
+      description: Finish time in minutes (1–240).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 240
+          step: 1
+          unit_of_measurement: "min"

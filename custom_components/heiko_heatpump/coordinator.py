@@ -43,6 +43,10 @@ from .protocol import (
     build_set_dhw_restart_dt,
     build_set_curve_amb_point,
     build_set_curve_water_point,
+    build_set_anti_leg_program,
+    build_set_anti_leg_setpoint,
+    build_set_anti_leg_duration,
+    build_set_anti_leg_finish,
     extract_all_params,
 )
 from .tcp_client import HeikoTCPClient
@@ -292,6 +296,31 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         _LOGGER.debug("CMD 0x02: Curve_Water = %s",
                       [self._latest_data.get(f"Curve_Water_{p}") for p in range(1, 6)])
 
+        # Anti-Legionella programme — idx 40-43 (confirmed by CMD 0x05 MITM)
+        v = _read_float(40)
+        if v is not None:
+            self._latest_data["Anti_Leg_Program"] = float(round(v))
+            changed = True
+            _LOGGER.debug("CMD 0x02: Anti_Leg_Program = %.0f", v)
+
+        v = _read_float(41)
+        if v is not None and v > 0:
+            self._latest_data["Anti_Leg_Setpoint"] = round(v, 1)
+            changed = True
+            _LOGGER.debug("CMD 0x02: Anti_Leg_Setpoint = %.1f°C", v)
+
+        v = _read_float(42)
+        if v is not None and v > 0:
+            self._latest_data["Anti_Leg_Duration"] = round(v, 1)
+            changed = True
+            _LOGGER.debug("CMD 0x02: Anti_Leg_Duration = %.0f min", v)
+
+        v = _read_float(43)
+        if v is not None and v > 0:
+            self._latest_data["Anti_Leg_Finish"] = round(v, 1)
+            changed = True
+            _LOGGER.debug("CMD 0x02: Anti_Leg_Finish = %.0f min", v)
+
         if changed and self._latest_data:
             self.async_set_updated_data(self._latest_data)
 
@@ -324,6 +353,7 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
             "Curve_Parallel",
             "Curve_Amb_1", "Curve_Amb_2", "Curve_Amb_3", "Curve_Amb_4", "Curve_Amb_5",
             "Curve_Water_1", "Curve_Water_2", "Curve_Water_3", "Curve_Water_4", "Curve_Water_5",
+            "Anti_Leg_Program", "Anti_Leg_Setpoint", "Anti_Leg_Duration", "Anti_Leg_Finish",
         ):
             if _key in self._latest_data:
                 params[_key] = self._latest_data[_key]
@@ -474,6 +504,26 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
     async def async_set_curve_water_5(self, value: float) -> None:
         await self._send_write(build_set_curve_water_point(self._mn, 5, value),
                                f"Curve water point 5 → {value:.1f}°C")
+
+    async def async_set_anti_leg_program(self, on: bool) -> None:
+        """Enable/disable Anti-Legionella programme. Write index 40: 1.0=on, 0.0=off."""
+        await self._send_write(build_set_anti_leg_program(self._mn, on),
+                               f"Anti-Legionella program → {'ON' if on else 'OFF'}")
+
+    async def async_set_anti_leg_setpoint(self, value: float) -> None:
+        """Set Anti-Legionella target temperature. Write index 41."""
+        await self._send_write(build_set_anti_leg_setpoint(self._mn, value),
+                               f"Anti-Legionella setpoint → {value:.1f}°C")
+
+    async def async_set_anti_leg_duration(self, value: float) -> None:
+        """Set Anti-Legionella hold duration. Write index 42."""
+        await self._send_write(build_set_anti_leg_duration(self._mn, value),
+                               f"Anti-Legionella duration → {value:.0f} min")
+
+    async def async_set_anti_leg_finish(self, value: float) -> None:
+        """Set Anti-Legionella finish time. Write index 43."""
+        await self._send_write(build_set_anti_leg_finish(self._mn, value),
+                               f"Anti-Legionella finish time → {value:.0f} min")
 
     async def _send_write(self, frame_bytes: bytes, description: str) -> None:
         """Send a CMD 0x05 write frame and log it."""

@@ -21,7 +21,7 @@ from homeassistant.components.number import (
     NumberEntity, NumberEntityDescription, NumberMode,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import UnitOfTemperature, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -131,6 +131,46 @@ async def async_setup_entry(
             coordinator_read_key=f"Curve_Water_{pt}",
             write_coro=f"async_set_curve_water_{pt}",
         ))
+
+    # Anti-Legionella numbers (confirmed by CMD 0x05 MITM capture, setdata idx 41-43)
+    entities += [
+        HeikoNumberEntity(
+            coordinator, mn_str,
+            key="anti_leg_setpoint",
+            name="Anti-Legionella Setpoint",
+            icon="mdi:thermometer-high",
+            min_value=40.0,
+            max_value=70.0,
+            step=1.0,
+            unit=UnitOfTemperature.CELSIUS,
+            coordinator_read_key="Anti_Leg_Setpoint",
+            write_coro="async_set_anti_leg_setpoint",
+        ),
+        HeikoNumberEntity(
+            coordinator, mn_str,
+            key="anti_leg_duration",
+            name="Anti-Legionella Duration",
+            icon="mdi:timer",
+            min_value=1.0,
+            max_value=120.0,
+            step=1.0,
+            unit=UnitOfTime.MINUTES,
+            coordinator_read_key="Anti_Leg_Duration",
+            write_coro="async_set_anti_leg_duration",
+        ),
+        HeikoNumberEntity(
+            coordinator, mn_str,
+            key="anti_leg_finish",
+            name="Anti-Legionella Finish Time",
+            icon="mdi:timer-check",
+            min_value=1.0,
+            max_value=240.0,
+            step=1.0,
+            unit=UnitOfTime.MINUTES,
+            coordinator_read_key="Anti_Leg_Finish",
+            write_coro="async_set_anti_leg_finish",
+        ),
+    ]
 
     async_add_entities(entities)
 

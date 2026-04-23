@@ -52,6 +52,14 @@ _SWITCH_DEFS = [
         "async_set_dhw_storage",
         False,
     ),
+    (
+        "Anti-Legionella Program",
+        "mdi:bacteria",
+        "anti_leg_switch",
+        "Anti_Leg_Program",
+        "async_set_anti_leg_program",
+        False,
+    ),
 ]
 
 
