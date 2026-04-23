@@ -96,48 +96,83 @@ class SetdataTracker:
     """
     Tracks CMD 0x02 setdata frames and reports diffs.
 
-    First frame: prints a full baseline of all non-zero indices.
-    Subsequent frames: prints only indices whose value changed by > 0.09
-    (threshold avoids float-rounding noise while catching integer steps of 1).
+    First frame: prints full baseline (all non-zero float indices) + raw hex.
+    Subsequent frames:
+      - If raw bytes differ: reports exact byte offsets (catches bitmasks /
+        non-float encodings that the float parser would miss).
+      - Then reports float-index changes > 0.09 (catches integer step changes).
+      - If bytes are identical: stays silent (frame arrives every ~60 s).
 
     Use this to identify write indices for settings changed on the physical
     pump panel — those changes don't produce CMD 0x05 writes, only updated
     CMD 0x02 setdata frames.
     """
 
-    _THRESH = 0.09  # minimum change to report
+    _THRESH = 0.09  # minimum float change to report
 
     def __init__(self) -> None:
         self._baseline: dict[int, float] | None = None
+        self._baseline_raw: bytes | None = None
 
     def on_setdata(self, payload: bytes, log: Logger) -> None:
         current = _setdata_floats(payload)
 
         if self._baseline is None:
+            self._baseline_raw = payload
+            self._baseline = current
             log.write("  ▶ SETDATA BASELINE — all non-zero indices:")
             for idx in sorted(current):
                 if abs(current[idx]) > self._THRESH:
                     name = IDX_NAME.get(idx, "?")
                     log.write(f"    idx {idx:3d}  ({name:<16s})  {current[idx]:g}")
-            self._baseline = current
+            log.write(f"  raw payload ({len(payload)} B): {payload.hex(' ')}")
             return
 
+        if payload == self._baseline_raw:
+            return  # identical frame — stay silent
+
+        # --- Raw byte diff (catches bitmasks / non-float encodings) ---
+        prev = self._baseline_raw
+        assert prev is not None
+        diffs = [
+            (i, prev[i], payload[i])
+            for i in range(min(len(payload), len(prev)))
+            if payload[i] != prev[i]
+        ]
+        if len(payload) != len(prev):
+            log.write(f"  ★ RAW SIZE CHANGE: {len(prev)} B → {len(payload)} B")
+        log.write(f"  ★ RAW CHANGE — {len(diffs)} byte(s) differ:")
+        for off, old_b, new_b in diffs[:30]:
+            if off >= 2:
+                fidx, foff = divmod(off - 2, 4)
+                log.write(
+                    f"    byte {off:4d}  float-idx={fidx:3d} byte-in-float={foff}"
+                    f"  0x{old_b:02X}→0x{new_b:02X}  ({old_b}→{new_b})"
+                )
+            else:
+                log.write(
+                    f"    byte {off:4d}  (header)  0x{old_b:02X}→0x{new_b:02X}"
+                )
+        if len(diffs) > 30:
+            log.write(f"    … {len(diffs) - 30} more differing bytes")
+
+        # --- Float-level diff ---
         changed: dict[int, tuple[float, float]] = {}
-        all_keys = set(self._baseline) | set(current)
-        for idx in all_keys:
+        for idx in set(self._baseline) | set(current):
             old = self._baseline.get(idx, 0.0)
             new = current.get(idx, 0.0)
             if abs(new - old) > self._THRESH:
                 changed[idx] = (old, new)
 
         if changed:
-            log.write("  ★★★★★ SETDATA CHANGED (physical panel?) ★★★★★")
+            log.write("  ★★★★★ SETDATA FLOAT CHANGED ★★★★★")
             for idx in sorted(changed):
                 old, new = changed[idx]
                 name = IDX_NAME.get(idx, "?")
                 log.write(f"    idx {idx:3d}  ({name:<16s})  {old:g} → {new:g}")
-            self._baseline = current
-        # If unchanged, stay silent — CMD 0x02 arrives every ~3 min
+
+        self._baseline_raw = payload
+        self._baseline = current
 
 
 def crc_analysis(raw: bytes) -> str:
