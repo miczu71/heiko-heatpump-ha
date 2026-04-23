@@ -33,22 +33,32 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Generate changelog
+      - name: Extract release notes from CHANGELOG.md
         if: steps.tag_check.outputs.exists == 'false'
         run: |
+          VERSION="${{ steps.version.outputs.version }}"
           PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$PREV_TAG" ]; then
-            git log --pretty=format:"- %s" > /tmp/changelog.md
-          else
-            git log --pretty=format:"- %s" "${PREV_TAG}..HEAD" > /tmp/changelog.md
-          fi
-          grep -vE "^- (Bump version|ci:)" /tmp/changelog.md > /tmp/notes.md || true
+
+          # Extract the section for this version from CHANGELOG.md.
+          # Prints lines between "## [VERSION]" and the next "## [" heading (exclusive).
+          awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" \
+            CHANGELOG.md > /tmp/notes.md
+
+          # Fall back to git log if the version section is missing from CHANGELOG.md
           if [ ! -s /tmp/notes.md ]; then
-            cp /tmp/changelog.md /tmp/notes.md
+            echo "⚠️ No entry for v${VERSION} found in CHANGELOG.md — falling back to git log." >&2
+            if [ -z "$PREV_TAG" ]; then
+              git log --pretty=format:"- %s" > /tmp/notes.md
+            else
+              git log --pretty=format:"- %s" "${PREV_TAG}..HEAD" \
+                | grep -vE "^- (docs:|ci:)" > /tmp/notes.md || true
+            fi
           fi
+
+          # Append full-changelog link
           if [ -n "$PREV_TAG" ]; then
             printf "\n**Full Changelog**: https://github.com/miczu71/heiko-heatpump-ha/compare/%s...v%s\n" \
-              "$PREV_TAG" "${{ steps.version.outputs.version }}" >> /tmp/notes.md
+              "$PREV_TAG" "$VERSION" >> /tmp/notes.md
           fi
 
       - name: Create release
