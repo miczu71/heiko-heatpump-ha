@@ -256,7 +256,8 @@ def parse_frame(raw: bytes) -> Optional[HeatPumpFrame]:
     if is_server_to_unit:
         computed_crc = _compute_crc(raw[2:payload_end]) & 0xFFFF
     else:
-        computed_crc = (_compute_crc(raw[:payload_end]) ^ _PUMP_CRC_OFFSET) & 0xFFFF
+        _offset = _PUMP_CRC_OFFSET_SETDATA if command == CMD_SETPARAMS else _PUMP_CRC_OFFSET
+        computed_crc = (_compute_crc(raw[:payload_end]) ^ _offset) & 0xFFFF
     crc_ok = (recv_crc == computed_crc)
 
     if not crc_ok:
@@ -314,7 +315,8 @@ def extract_all_params(payload: bytes) -> dict[str, float]:
 # XOR offset of 0x0903 on every frame. Confirmed from 29 received frames where
 # received XOR computed = 0x0903 without exception.
 # We apply the same offset to outgoing frames so the pump accepts them.
-_PUMP_CRC_OFFSET = 0x0903
+_PUMP_CRC_OFFSET         = 0x0903   # CMD 0x01 realtime (confirmed from 29 frames)
+_PUMP_CRC_OFFSET_SETDATA = 0x0DB0   # CMD 0x02 setdata (confirmed from CRC mismatch analysis)
 
 
 def _build_frame(

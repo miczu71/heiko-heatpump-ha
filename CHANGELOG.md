@@ -8,6 +8,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - All editable number entities now use step 1 — values display as integers (e.g. `6 °C` instead of `6.0 °C`). Affected: DHW Setpoint, Heating/Cooling Stops ΔT, Heating/Cooling Restarts ΔT, DHW Restart ΔT, HC Amb 1–5, HC Water 1–5
 
+## [1.7.3] - 2026-04-26
+
+### Fixed
+- **Spurious CRC mismatch warning** — CMD 0x02 setdata frames logged a `CRC mismatch` warning on every poll because the code applied the CMD 0x01 XOR offset (0x0903) to all unit→server frames. CMD 0x02 uses a different offset (0x0DB0). `parse_frame()` now selects the correct offset by command byte; both frame types verify cleanly
+
 ## [1.7.1] - 2026-04-23
 
 ### Changed
