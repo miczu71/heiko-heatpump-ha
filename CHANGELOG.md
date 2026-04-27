@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.7.4] - 2026-04-27
+
+### Fixed
+- **Number card shows integer values** — `native_value` now returns `int` when `step=1`, so HA stores e.g. `-13` instead of `-13.0` in the state machine; the device card no longer renders `-13,0 °C`
+
 ## [1.7.2] - 2026-04-23
 
 ### Changed

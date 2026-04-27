@@ -215,10 +215,16 @@ class HeikoNumberEntity(CoordinatorEntity[HeikoCoordinator], NumberEntity):
     @property
     def native_value(self) -> float | None:
         if self._optimistic is not None:
-            return self._optimistic
-        if not self._read_key or not self.coordinator.data:
+            val = self._optimistic
+        elif not self._read_key or not self.coordinator.data:
             return None
-        return self.coordinator.data.get(self._read_key)
+        else:
+            val = self.coordinator.data.get(self._read_key)
+        if val is None:
+            return None
+        if self._attr_native_step == 1.0:
+            return int(val)
+        return val
 
     async def async_set_native_value(self, value: float) -> None:
         value = max(self._attr_native_min_value,
