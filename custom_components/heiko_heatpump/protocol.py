@@ -506,7 +506,7 @@ def build_set_heating_curve(mn: bytes, on: bool, **kwargs) -> bytes:
 
 
 def build_set_hbh(mn: bytes, on: bool, **kwargs) -> bytes:
-    """Enable/disable backup heater (HBH). Write index 48. Confirmed MITM.
+    """Enable/disable backup heater (HBH). Write index 50. Confirmed MITM.
     Note: pump logic is inverted — 0.0 enables, 1.0 disables."""
     return build_write_param(mn, WRITE_IDX_HBH, 0.0 if on else 1.0, **kwargs)
 
@@ -610,12 +610,19 @@ class FrameBuffer:
     def _try_extract_one(self) -> Optional[bytes]:
         buf = self._buf
 
-        # Search for either header direction:
-        #   AA 55 = unit → server,  55 AA = server → unit
-        while len(buf) >= 2:
-            if (buf[0] == 0xAA and buf[1] == 0x55) or (buf[0] == 0x55 and buf[1] == 0xAA):
-                break
-            buf.pop(0)  # discard leading garbage byte
+        # Scan for earliest valid header (AA 55 = unit→server, 55 AA = server→unit).
+        # Using bytearray.find() is O(n) vs. the pop(0) loop which was O(n²).
+        aa55  = buf.find(b'\xAA\x55')
+        h55aa = buf.find(b'\x55\xAA')
+        candidates = [i for i in (aa55, h55aa) if i >= 0]
+        if not candidates:
+            # No header found; cap buffer to 8 KiB to bound growth on garbage input
+            if len(buf) > 8192:
+                del buf[:-1]
+            return None
+        header_pos = min(candidates)
+        if header_pos > 0:
+            del buf[:header_pos]  # discard garbage before the header
 
         # Need at least 13 bytes to read content_len
         if len(buf) < 13:

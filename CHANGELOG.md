@@ -3,6 +3,14 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.8.2] - 2026-05-15
+
+### Fixed / Performance
+- **Realtime change detection** — `_handle_realtime` now compares the new parameter dict to the previous one before calling `async_set_updated_data`; entities are not notified when the pump sends identical readings (common in standby). Cuts per-frame entity callbacks by up to 3–5× in stable operating conditions
+- **Skip redundant poll** — `_async_update_data` skips the CMD 0x06 active poll if the pump pushed data within the last 60 s (same as `POLL_INTERVAL`); halves wire traffic under normal conditions
+- **`FrameBuffer` O(n²) → O(n)** — replaced `bytearray.pop(0)` loop (O(n²) on garbage input) with `bytearray.find()` + `del buf[:idx]` (O(n)); added 8 KiB cap on buffer growth when no valid header is found, preventing unbounded memory use on a misbehaving bridge
+- **Stale HBH write-index comment** — `build_set_hbh` docstring and `async_set_hbh` docstring both said "Write index 48" but `WRITE_IDX_HBH = 50` has always been correct; comments updated
+
 ## [1.8.1] - 2026-05-15
 
 ### Changed (internal refactor — no behavior change)

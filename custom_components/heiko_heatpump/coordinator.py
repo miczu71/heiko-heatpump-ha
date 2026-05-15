@@ -170,8 +170,9 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         if not self._client.connected:
             raise UpdateFailed("Not connected to heat pump bridge")
 
+        now = dt_util.utcnow()
         if self._last_seen is not None:
-            age = dt_util.utcnow() - self._last_seen
+            age = now - self._last_seen
             if age > _STALE_THRESHOLD and not self._issue_active:
                 async_create_issue(
                     self.hass,
@@ -186,6 +187,9 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
                     },
                 )
                 self._issue_active = True
+            elif age < POLL_INTERVAL:
+                # Pump pushed data recently — skip the active poll
+                return self._latest_data or {}
 
         poll_frame = build_request_realtime(self._mn)
         ok = await self._client.send(poll_frame)
@@ -326,10 +330,13 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
 
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug("Received realtime data: %s", params)
-        self._latest_data = params
 
-        # Push update to all subscribed HA entities immediately
-        self.async_set_updated_data(params)
+        # Only notify entities when at least one value actually changed.
+        # In standby the pump still pushes every 30s with identical readings.
+        changed = params != self._latest_data
+        self._latest_data = params
+        if changed:
+            self.async_set_updated_data(params)
 
         # Send acknowledgement back to the unit (CMD 0x03)
         ack = build_ack_realtime(frame.mn)
@@ -366,7 +373,7 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
                                f"Heating curve → {'ON' if on else 'OFF'}")
 
     async def async_set_hbh(self, on: bool) -> None:
-        """Enable/disable backup heater (HBH). Write index 48: inverted (0.0=on, 1.0=off)."""
+        """Enable/disable backup heater (HBH). Write index 50: inverted (0.0=on, 1.0=off)."""
         await self._send_write(build_set_hbh(self._mn, on),
                                f"Backup heater (HBH) → {'ON' if on else 'OFF'}")
 
