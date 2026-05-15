@@ -5,9 +5,12 @@ Connects to the USR-W600 WiFi-to-RS-485 bridge over TCP and exposes
 heat pump sensor values and controls as Home Assistant entities.
 
 Platforms loaded:
-  - sensor  (temperatures, pressures, frequency, voltage, current, etc.)
-  - switch  (on/off power control via Sw parameter)
-  - climate (setpoint + on/off combined for thermostat card, optional)
+  - binary_sensor  (connection, anti-legionella running)
+  - sensor         (temperatures, pressures, frequency, voltage, current, etc.)
+  - switch         (power, heating curve, HBH, DHW storage, anti-legionella)
+  - number         (setpoints, deltas, heating curve breakpoints)
+  - select         (working mode)
+  - water_heater   (DHW control)
 """
 
 from __future__ import annotations
@@ -89,15 +92,13 @@ def _register_services(hass: HomeAssistant) -> None:
         point = int(call.data["point"])
         value = float(call.data["temperature"])
         for coord in _all_coordinators(hass):
-            method = getattr(coord, f"async_set_curve_amb_{point}")
-            await method(value)
+            await coord.async_set_curve_amb(point, value)
 
     async def set_curve_water_temp(call: ServiceCall) -> None:
         point = int(call.data["point"])
         value = float(call.data["temperature"])
         for coord in _all_coordinators(hass):
-            method = getattr(coord, f"async_set_curve_water_{point}")
-            await method(value)
+            await coord.async_set_curve_water(point, value)
 
     async def set_anti_leg_program(call: ServiceCall) -> None:
         for coord in _all_coordinators(hass):

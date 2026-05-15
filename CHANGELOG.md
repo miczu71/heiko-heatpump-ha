@@ -3,6 +3,18 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.8.1] - 2026-05-15
+
+### Changed (internal refactor — no behavior change)
+- **`_SETDATA_MAP` table** in `coordinator.py` — replaces 18 hand-coded `_read_float` + store blocks (~115 lines) with a 24-entry declarative table and a single loop; also detects which keys actually changed before calling `async_set_updated_data`, so entities are not notified when the pump sends the same setdata twice
+- **`_SETDATA_KEYS` frozenset** derived automatically from the map — replaces the hand-maintained 24-key preserved-keys tuple in `_handle_realtime`; adding a new setdata field now requires only one table entry
+- **Collapsed 10 per-point coordinator methods** — `async_set_curve_amb_{1..5}` and `async_set_curve_water_{1..5}` replaced by `async_set_curve_amb(point, value)` and `async_set_curve_water(point, value)`; `number.py` lambdas and `__init__.py` service handlers updated to call the new signatures directly (no more `getattr`)
+- **Repair issue transition gating** — `async_create_issue` is now called only on the fresh→stale transition (not every poll) and `async_delete_issue` only on stale→fresh; eliminates issue-registry churn visible in logs
+- **Stale-issue ordering** — connectivity is checked before stale-age, so a disconnected pump does not raise the stale-data repair issue
+- **Debug-log guard** on `_LOGGER.debug("Received realtime data: %s", params)` — avoids building the dict string every 30 s when debug logging is off
+- **`import struct` moved to module level** from inside `_handle_setdata` hot path
+- **`__init__.py` platforms docstring** corrected (previously listed non-existent "climate" platform)
+
 ## [1.8.0] - 2026-05-15
 
 ### Changed (internal refactor — no behavior change)

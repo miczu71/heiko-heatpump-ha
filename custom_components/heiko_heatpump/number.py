@@ -38,16 +38,6 @@ class HeikoNumberEntityDescription:
     write: Callable[[HeikoCoordinator, float], Awaitable[None]]
 
 
-def _amb_write(pt: int) -> Callable[[HeikoCoordinator, float], Awaitable[None]]:
-    async def _w(coord: HeikoCoordinator, v: float) -> None:
-        await getattr(coord, f"async_set_curve_amb_{pt}")(v)
-    return _w
-
-
-def _water_write(pt: int) -> Callable[[HeikoCoordinator, float], Awaitable[None]]:
-    async def _w(coord: HeikoCoordinator, v: float) -> None:
-        await getattr(coord, f"async_set_curve_water_{pt}")(v)
-    return _w
 
 
 _BASE_DESCS: list[HeikoNumberEntityDescription] = [
@@ -136,7 +126,7 @@ _CURVE_DESCS: list[HeikoNumberEntityDescription] = [
             min_value=-25.0, max_value=20.0, step=1.0,
             unit=UnitOfTemperature.CELSIUS,
             read_key=f"Curve_Amb_{pt}",
-            write=_amb_write(pt),
+            write=lambda coord, v, _pt=pt: coord.async_set_curve_amb(_pt, v),
         )
         for pt in range(1, 6)
     ),
@@ -148,7 +138,7 @@ _CURVE_DESCS: list[HeikoNumberEntityDescription] = [
             min_value=15.0, max_value=60.0, step=1.0,
             unit=UnitOfTemperature.CELSIUS,
             read_key=f"Curve_Water_{pt}",
-            write=_water_write(pt),
+            write=lambda coord, v, _pt=pt: coord.async_set_curve_water(_pt, v),
         )
         for pt in range(1, 6)
     ),

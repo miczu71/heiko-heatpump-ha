@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import struct
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -59,6 +60,39 @@ POLL_INTERVAL = timedelta(seconds=60)
 _STALE_THRESHOLD = timedelta(minutes=5)
 _ISSUE_ID = "pump_not_responding"
 
+# SETDATA_MAP: (payload_idx, data_key, min_guard, precision)
+# min_guard: if not None, skip value when v <= min_guard (0.0 filters uninitialised pump zeros)
+# precision: None → float(round(v)) for boolean/mode flags; 1 → round(v, 1) for temperatures/times
+_SETDATA_MAP: list[tuple[int, str, float | None, int | None]] = [
+    (54,  "DHW_Setpoint",        0.0,  1),
+    (0,   "Power_State",         None, None),
+    (3,   "Mode_Setdata",        None, None),
+    (23,  "HeatingCurve_State",  None, None),
+    (50,  "HBH_State",           None, None),
+    (62,  "DHWStorage_State",    None, None),
+    (19,  "Heating_Stops_DT",    0.0,  1),
+    (20,  "Heating_Restarts_DT", 0.0,  1),
+    (55,  "DHW_Restart_DT",      0.0,  1),
+    (120, "Curve_Parallel",      None, 1),
+    (40,  "Anti_Leg_Program",    None, None),
+    (41,  "Anti_Leg_Setpoint",   0.0,  1),
+    (42,  "Anti_Leg_Duration",   0.0,  1),
+    (43,  "Anti_Leg_Finish",     0.0,  1),
+    (24,  "Curve_Amb_1",         None, 1),
+    (25,  "Curve_Amb_2",         None, 1),
+    (26,  "Curve_Amb_3",         None, 1),
+    (27,  "Curve_Amb_4",         None, 1),
+    (28,  "Curve_Amb_5",         None, 1),
+    (29,  "Curve_Water_1",       None, 1),
+    (30,  "Curve_Water_2",       None, 1),
+    (31,  "Curve_Water_3",       None, 1),
+    (32,  "Curve_Water_4",       None, 1),
+    (33,  "Curve_Water_5",       None, 1),
+]
+# Derived frozenset of keys that _handle_setdata writes — used to preserve them across
+# realtime frames without manually maintaining a second list.
+_SETDATA_KEYS: frozenset[str] = frozenset(key for _, key, _, _ in _SETDATA_MAP)
+
 
 class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
     """
@@ -87,6 +121,7 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         self._last_seen: datetime | None = None
         self._reconnect_count: int = 0
         self._ever_connected: bool = False
+        self._issue_active: bool = False
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -132,9 +167,12 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         This method returns the most recently seen data so that the coordinator
         does not report a failure when the pump is merely slow to respond.
         """
+        if not self._client.connected:
+            raise UpdateFailed("Not connected to heat pump bridge")
+
         if self._last_seen is not None:
             age = dt_util.utcnow() - self._last_seen
-            if age > _STALE_THRESHOLD:
+            if age > _STALE_THRESHOLD and not self._issue_active:
                 async_create_issue(
                     self.hass,
                     DOMAIN,
@@ -147,9 +185,7 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
                         "last_seen": self._last_seen.astimezone().strftime("%H:%M:%S"),
                     },
                 )
-
-        if not self._client.connected:
-            raise UpdateFailed("Not connected to heat pump bridge")
+                self._issue_active = True
 
         poll_frame = build_request_realtime(self._mn)
         ok = await self._client.send(poll_frame)
@@ -171,7 +207,9 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         CMD 0x02: setdata snapshot (every ~3 min) — reads DHW setpoint.
         """
         self._last_seen = dt_util.utcnow()
-        async_delete_issue(self.hass, DOMAIN, _ISSUE_ID)
+        if self._issue_active:
+            async_delete_issue(self.hass, DOMAIN, _ISSUE_ID)
+            self._issue_active = False
         if frame.command == CMD_REALTIME:
             await self._handle_realtime(frame)
         elif frame.command == CMD_SETPARAMS:
@@ -195,133 +233,31 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         ack = build_ack_setparams(frame.mn, target=frame.target, device_id=frame.device_id)
         await self._client.send(ack)
 
-        import struct as _st
+        payload = frame.payload
 
         def _read_float(idx: int) -> float | None:
             off = 2 + idx * 4
-            if len(frame.payload) >= off + 4:
-                v = _st.unpack_from('<f', frame.payload, off)[0]
+            if len(payload) >= off + 4:
+                v = struct.unpack_from('<f', payload, off)[0]
                 if -1e6 < v < 1e6:
                     return v
             return None
 
-        changed = False
+        changed_keys: list[str] = []
+        for idx, key, min_guard, precision in _SETDATA_MAP:
+            v = _read_float(idx)
+            if v is None:
+                continue
+            if min_guard is not None and v <= min_guard:
+                continue
+            new_val = float(round(v)) if precision is None else round(v, precision)
+            if self._latest_data.get(key) != new_val:
+                self._latest_data[key] = new_val
+                changed_keys.append(key)
 
-        # DHW setpoint — idx 54
-        v = _read_float(54)
-        if v is not None and v > 0:
-            self._latest_data["DHW_Setpoint"] = round(v, 1)
-            changed = True
-            _LOGGER.debug("CMD 0x02: DHW setpoint = %.1f°C", v)
-
-        # Power state — idx 0: 0.0=off, 1.0=on
-        v = _read_float(0)
-        if v is not None:
-            self._latest_data["Power_State"] = float(round(v))
-            changed = True
-            _LOGGER.debug("CMD 0x02: Power = %.0f", v)
-
-        # Working mode (write-side convention) — idx 3: same as par4 in cloud API
-        # 0=Standby, 1=Heating, 2=Cooling, 3=DHW, 4=Auto
-        v = _read_float(3)
-        if v is not None:
-            self._latest_data["Mode_Setdata"] = float(round(v))
-            changed = True
-            _LOGGER.debug("CMD 0x02: Mode_Setdata = %.0f", v)
-
-        # Heating curve — idx 23: 0.0=off, 1.0=on
-        v = _read_float(23)
-        if v is not None:
-            self._latest_data["HeatingCurve_State"] = float(round(v))
-            changed = True
-            _LOGGER.debug("CMD 0x02: HeatingCurve = %.0f", v)
-
-        # HBH backup heater — idx 50: inverted (0.0=enabled, 1.0=disabled)
-        v = _read_float(50)
-        if v is not None:
-            self._latest_data["HBH_State"] = float(round(v))
-            changed = True
-            _LOGGER.debug("CMD 0x02: HBH = %.0f (0=on, 1=off)", v)
-
-        # DHW storage — idx 62: 0.0=off, 1.0=on
-        v = _read_float(62)
-        if v is not None:
-            self._latest_data["DHWStorage_State"] = float(round(v))
-            changed = True
-            _LOGGER.debug("CMD 0x02: DHWStorage = %.0f", v)
-
-        # Heating/cooling stop ΔT — idx 19
-        v = _read_float(19)
-        if v is not None and v > 0:
-            self._latest_data["Heating_Stops_DT"] = round(v, 1)
-            changed = True
-            _LOGGER.debug("CMD 0x02: Heating_Stops_DT = %.1f°C", v)
-
-        # Heating/cooling restart ΔT — idx 20
-        v = _read_float(20)
-        if v is not None and v > 0:
-            self._latest_data["Heating_Restarts_DT"] = round(v, 1)
-            changed = True
-            _LOGGER.debug("CMD 0x02: Heating_Restarts_DT = %.1f°C", v)
-
-        # DHW restart ΔT — idx 55
-        v = _read_float(55)
-        if v is not None and v > 0:
-            self._latest_data["DHW_Restart_DT"] = round(v, 1)
-            changed = True
-            _LOGGER.debug("CMD 0x02: DHW_Restart_DT = %.1f°C", v)
-
-        # Heating curve parallel shift — idx 120 (may be absent if payload is short)
-        v = _read_float(120)
-        if v is not None:
-            self._latest_data["Curve_Parallel"] = round(v, 1)
-            changed = True
-            _LOGGER.debug("CMD 0x02: Curve_Parallel = %.1f", v)
-
-        # Heating curve ambient temp breakpoints — idx 24–28 (points 1–5)
-        for _pt in range(1, 6):
-            v = _read_float(23 + _pt)
-            if v is not None:
-                self._latest_data[f"Curve_Amb_{_pt}"] = round(v, 1)
-                changed = True
-        _LOGGER.debug("CMD 0x02: Curve_Amb = %s",
-                      [self._latest_data.get(f"Curve_Amb_{p}") for p in range(1, 6)])
-
-        # Heating curve water temp breakpoints — idx 29–33 (points 1–5)
-        for _pt in range(1, 6):
-            v = _read_float(28 + _pt)
-            if v is not None:
-                self._latest_data[f"Curve_Water_{_pt}"] = round(v, 1)
-                changed = True
-        _LOGGER.debug("CMD 0x02: Curve_Water = %s",
-                      [self._latest_data.get(f"Curve_Water_{p}") for p in range(1, 6)])
-
-        # Anti-Legionella programme — idx 40-43 (confirmed by CMD 0x05 MITM)
-        v = _read_float(40)
-        if v is not None:
-            self._latest_data["Anti_Leg_Program"] = float(round(v))
-            changed = True
-            _LOGGER.debug("CMD 0x02: Anti_Leg_Program = %.0f", v)
-
-        v = _read_float(41)
-        if v is not None and v > 0:
-            self._latest_data["Anti_Leg_Setpoint"] = round(v, 1)
-            changed = True
-            _LOGGER.debug("CMD 0x02: Anti_Leg_Setpoint = %.1f°C", v)
-
-        v = _read_float(42)
-        if v is not None and v > 0:
-            self._latest_data["Anti_Leg_Duration"] = round(v, 1)
-            changed = True
-            _LOGGER.debug("CMD 0x02: Anti_Leg_Duration = %.0f min", v)
-
-        v = _read_float(43)
-        if v is not None and v > 0:
-            self._latest_data["Anti_Leg_Finish"] = round(v, 1)
-            changed = True
-            _LOGGER.debug("CMD 0x02: Anti_Leg_Finish = %.0f min", v)
-
-        if changed and self._latest_data:
+        if changed_keys:
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("CMD 0x02 setdata updated: %s", changed_keys)
             self.async_set_updated_data(self._latest_data)
 
     async def _handle_realtime(self, frame: HeatPumpFrame) -> None:
@@ -344,17 +280,10 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
             return
 
         # ── Preserve slow-updating values from CMD 0x02 setdata frames ────────
-        # These keys are only set when a CMD 0x02 arrives. Carry them forward
-        # into every realtime update so they don't vanish between setdata frames.
-        for _key in (
-            "DHW_Setpoint", "Power_State", "Mode_Setdata",
-            "HeatingCurve_State", "HBH_State", "DHWStorage_State",
-            "Heating_Stops_DT", "Heating_Restarts_DT", "DHW_Restart_DT",
-            "Curve_Parallel",
-            "Curve_Amb_1", "Curve_Amb_2", "Curve_Amb_3", "Curve_Amb_4", "Curve_Amb_5",
-            "Curve_Water_1", "Curve_Water_2", "Curve_Water_3", "Curve_Water_4", "Curve_Water_5",
-            "Anti_Leg_Program", "Anti_Leg_Setpoint", "Anti_Leg_Duration", "Anti_Leg_Finish",
-        ):
+        # These keys are only set when a CMD 0x02 arrives (~3 min). Carry them
+        # forward into every realtime update so they don't vanish between frames.
+        # Derived from _SETDATA_MAP — no separate list to maintain.
+        for _key in _SETDATA_KEYS:
             if _key in self._latest_data:
                 params[_key] = self._latest_data[_key]
 
@@ -395,7 +324,8 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
                 params["COP_estimated"] = round(q_thermal / power_w, 2)
                 params["Thermal_power"] = round(q_thermal, 1)
 
-        _LOGGER.debug("Received realtime data: %s", params)
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("Received realtime data: %s", params)
         self._latest_data = params
 
         # Push update to all subscribed HA entities immediately
@@ -465,45 +395,19 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         await self._send_write(build_set_dhw_restart_dt(self._mn, value),
                                f"DHW restart ΔT → {value:.1f}°C")
 
-    async def async_set_curve_amb_1(self, value: float) -> None:
-        await self._send_write(build_set_curve_amb_point(self._mn, 1, value),
-                               f"Curve ambient point 1 → {value:.1f}°C")
+    async def async_set_curve_amb(self, point: int, value: float) -> None:
+        """Set heating curve ambient temperature breakpoint (point 1–5, write indices 24–28)."""
+        await self._send_write(
+            build_set_curve_amb_point(self._mn, point, value),
+            f"Curve ambient point {point} → {value:.1f}°C",
+        )
 
-    async def async_set_curve_amb_2(self, value: float) -> None:
-        await self._send_write(build_set_curve_amb_point(self._mn, 2, value),
-                               f"Curve ambient point 2 → {value:.1f}°C")
-
-    async def async_set_curve_amb_3(self, value: float) -> None:
-        await self._send_write(build_set_curve_amb_point(self._mn, 3, value),
-                               f"Curve ambient point 3 → {value:.1f}°C")
-
-    async def async_set_curve_amb_4(self, value: float) -> None:
-        await self._send_write(build_set_curve_amb_point(self._mn, 4, value),
-                               f"Curve ambient point 4 → {value:.1f}°C")
-
-    async def async_set_curve_amb_5(self, value: float) -> None:
-        await self._send_write(build_set_curve_amb_point(self._mn, 5, value),
-                               f"Curve ambient point 5 → {value:.1f}°C")
-
-    async def async_set_curve_water_1(self, value: float) -> None:
-        await self._send_write(build_set_curve_water_point(self._mn, 1, value),
-                               f"Curve water point 1 → {value:.1f}°C")
-
-    async def async_set_curve_water_2(self, value: float) -> None:
-        await self._send_write(build_set_curve_water_point(self._mn, 2, value),
-                               f"Curve water point 2 → {value:.1f}°C")
-
-    async def async_set_curve_water_3(self, value: float) -> None:
-        await self._send_write(build_set_curve_water_point(self._mn, 3, value),
-                               f"Curve water point 3 → {value:.1f}°C")
-
-    async def async_set_curve_water_4(self, value: float) -> None:
-        await self._send_write(build_set_curve_water_point(self._mn, 4, value),
-                               f"Curve water point 4 → {value:.1f}°C")
-
-    async def async_set_curve_water_5(self, value: float) -> None:
-        await self._send_write(build_set_curve_water_point(self._mn, 5, value),
-                               f"Curve water point 5 → {value:.1f}°C")
+    async def async_set_curve_water(self, point: int, value: float) -> None:
+        """Set heating curve water temperature breakpoint (point 1–5, write indices 29–33)."""
+        await self._send_write(
+            build_set_curve_water_point(self._mn, point, value),
+            f"Curve water point {point} → {value:.1f}°C",
+        )
 
     async def async_set_anti_leg_program(self, on: bool) -> None:
         """Enable/disable Anti-Legionella programme. Write index 40: 1.0=on, 0.0=off."""
