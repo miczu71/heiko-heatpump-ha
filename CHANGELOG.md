@@ -3,6 +3,15 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.8.0] - 2026-05-15
+
+### Changed (internal refactor — no behavior change)
+- **New `entity.py` base class** — `HeikoBaseEntity` centralises `unique_id` and `DeviceInfo` setup; eliminates 8 identical `DeviceInfo(identifiers=…)` blocks spread across entity platforms
+- **Description-based number entities** — `HeikoNumberEntityDescription` frozen dataclass replaces the 12-argument `HeikoNumberEntity` constructor; write callables stored directly instead of method-name strings dispatched via `getattr`
+- **Description-based switch entities** — `HeikoSwitchEntityDescription` frozen dataclass replaces `_SWITCH_DEFS` positional tuples and `getattr` write dispatch in `switch.py`
+- **`select.py` mode compare** — `if option == "Standby":` replaced with `if mode_val == MODE_STANDBY:` to decouple behaviour from the UI label string
+- **`except Exception` → `_LOGGER.exception`** — `select.py` (and `number.py`, `switch.py`) now log full stack traces on write errors instead of swallowing them with `.error(…, exc)`
+
 ## [1.7.4] - 2026-04-27
 
 ### Fixed

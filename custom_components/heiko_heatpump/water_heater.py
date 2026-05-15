@@ -11,12 +11,11 @@ from homeassistant.components.water_heater import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MANUFACTURER, MODEL
+from .const import DOMAIN
 from .coordinator import HeikoCoordinator
+from .entity import HeikoBaseEntity
 from .protocol import MODE_STANDBY, MODE_HEATING, MODE_COOLING, MODE_DHW, MODE_AUTO
 
 _OP_TO_MODE: dict[str, int] = {
@@ -36,10 +35,10 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: HeikoCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([HeikoDHWWaterHeater(coordinator, entry)])
+    async_add_entities([HeikoDHWWaterHeater(coordinator, entry.data["mn"])])
 
 
-class HeikoDHWWaterHeater(CoordinatorEntity[HeikoCoordinator], WaterHeaterEntity):
+class HeikoDHWWaterHeater(HeikoBaseEntity, WaterHeaterEntity):
     """Domestic hot water control via the water_heater platform."""
 
     _attr_name = "DHW"
@@ -53,16 +52,8 @@ class HeikoDHWWaterHeater(CoordinatorEntity[HeikoCoordinator], WaterHeaterEntity
         | WaterHeaterEntityFeature.OPERATION_MODE
     )
 
-    def __init__(self, coordinator: HeikoCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        mn_str = entry.data["mn"]
-        self._attr_unique_id = f"{mn_str}_dhw_water_heater"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mn_str)},
-            name="Heiko Heat Pump",
-            manufacturer=MANUFACTURER,
-            model=MODEL,
-        )
+    def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
+        super().__init__(coordinator, mn_str, "dhw_water_heater")
 
     @property
     def current_temperature(self) -> float | None:

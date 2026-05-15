@@ -94,15 +94,15 @@ class HeikoModeSelectEntity(CoordinatorEntity[HeikoCoordinator], SelectEntity):
         self._optimistic = option
         self.async_write_ha_state()
         try:
-            if option == "Standby":
+            if mode_val == MODE_STANDBY:
                 # Turn power off — pump enters standby
                 await self.coordinator.async_set_power(False)
             else:
                 # Ensure power is on, then set mode
                 await self.coordinator.async_set_power(True)
                 await self.coordinator.async_set_mode(mode_val)
-        except Exception as exc:
-            _LOGGER.error("Failed to set mode to %s: %s", option, exc)
+        except Exception:
+            _LOGGER.exception("Failed to set mode to %s", option)
             self._optimistic = None
             self.async_write_ha_state()
 

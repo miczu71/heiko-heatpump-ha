@@ -8,12 +8,12 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo, EntityCategory
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MANUFACTURER, MODEL
 from .coordinator import HeikoCoordinator
+from .const import DOMAIN
+from .entity import HeikoBaseEntity
 
 
 async def async_setup_entry(
@@ -29,7 +29,7 @@ async def async_setup_entry(
     ])
 
 
-class HeikoConnectionSensor(CoordinatorEntity[HeikoCoordinator], BinarySensorEntity):
+class HeikoConnectionSensor(HeikoBaseEntity, BinarySensorEntity):
     """True when the TCP socket to the W600 bridge is live."""
 
     _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
@@ -38,21 +38,14 @@ class HeikoConnectionSensor(CoordinatorEntity[HeikoCoordinator], BinarySensorEnt
     _attr_name = "Connection"
 
     def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{mn_str}_connection"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mn_str)},
-            name="Heiko Heat Pump",
-            manufacturer=MANUFACTURER,
-            model=MODEL,
-        )
+        super().__init__(coordinator, mn_str, "connection")
 
     @property
     def is_on(self) -> bool:
         return self.coordinator.connected
 
 
-class HeikoAntiLegRunningSensor(CoordinatorEntity[HeikoCoordinator], BinarySensorEntity):
+class HeikoAntiLegRunningSensor(HeikoBaseEntity, BinarySensorEntity):
     """
     True when the Anti-Legionella programme is enabled AND the pump is in DHW mode.
 
@@ -68,14 +61,7 @@ class HeikoAntiLegRunningSensor(CoordinatorEntity[HeikoCoordinator], BinarySenso
     _attr_name = "Anti-Legionella Running"
 
     def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{mn_str}_anti_leg_running"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mn_str)},
-            name="Heiko Heat Pump",
-            manufacturer=MANUFACTURER,
-            model=MODEL,
-        )
+        super().__init__(coordinator, mn_str, "anti_leg_running")
 
     @property
     def is_on(self) -> bool | None:
