@@ -22,6 +22,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN, CONF_HOST, CONF_PORT, CONF_MN, CONF_FLOW_RATE, DEFAULT_FLOW_RATE
 from .coordinator import HeikoCoordinator
@@ -234,6 +235,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info(
         "Heiko Heat Pump integration started: %s:%d (MN %s)", host, port, mn_str
     )
+    return True
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: ConfigEntry, device_entry: dr.DeviceEntry
+) -> bool:
+    """Allow the user to remove any device registered under this entry.
+
+    There is exactly one physical device (the heat pump bridge); this only
+    exists to let stale/orphaned registry entries be deleted from the UI.
+    """
     return True
 
 

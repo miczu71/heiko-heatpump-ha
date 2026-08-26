@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.8.3] - 2026-08-26
+
+### Added
+- **`async_remove_config_entry_device`** — the integration previously had no removal hook, so Home Assistant unconditionally refused to delete any device under this config entry (UI trash icon and the device-registry API both failed with "Config entry does not support device removal"). This blocked cleanup of stale/orphaned registry entries left over from earlier versions that keyed device identifiers by config-entry ID instead of MAC. Now returns `True` unconditionally — there is exactly one physical device per entry, so any device registered under it that Home Assistant offers for removal is safe to delete
+
 ## [1.8.2] - 2026-05-15
 
 ### Fixed / Performance
