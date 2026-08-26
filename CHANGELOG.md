@@ -3,6 +3,21 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.8.4] - 2026-08-26
+
+### Removed (dead code, no behavior change)
+- `coordinator.py`: 7 unused imports (`asyncio`, `typing.Any`, `MODE_STANDBY`/`MODE_HEATING`/`MODE_COOLING`/`MODE_DHW`/`MODE_AUTO`), the unused `self._mn_config` field, and `async_set_setpoint()` — no entity or service ever called it (the heating setpoint is controlled via the heating curve, not a direct setpoint write)
+- `sensor.py`: unused `logging` import and `_LOGGER`
+
+### Changed (internal refactor — no behavior change)
+- Finished the `HeikoBaseEntity` migration started in 1.8.0: `sensor.py` (6 classes) and `select.py` (1 class) now use the shared base class instead of hand-rolling an identical `DeviceInfo` block each. `unique_id` values are unchanged — no entity re-registration
+- Removed 7 `_handle_coordinator_update` overrides (`sensor.py` ×6, `water_heater.py` ×1) that were byte-identical to `CoordinatorEntity`'s default implementation
+
+### Fixed
+- Options flow (reconfigure existing entry) now shows proper field labels instead of raw keys (`host`, `port`, `mn`, `flow_rate_lps`) — `strings.json` was missing an `options` section
+- Write-command failures now raise `HomeAssistantError` instead of a bare `RuntimeError`, so the UI shows a clean error instead of a traceback
+- `config_flow.py`: narrowed `except (ValueError, Exception)` to `except ValueError` in two places — the bare `Exception` catch was silently swallowing real bugs
+
 ## [1.8.3] - 2026-08-26
 
 ### Added

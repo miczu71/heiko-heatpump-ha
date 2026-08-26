@@ -11,13 +11,12 @@ Responsibilities:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import struct
 from datetime import datetime, timedelta
-from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.issue_registry import IssueSeverity, async_create_issue, async_delete_issue
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -27,13 +26,11 @@ from .protocol import (
     HeatPumpFrame,
     CMD_REALTIME,
     CMD_SETPARAMS,
-    MODE_STANDBY, MODE_HEATING, MODE_COOLING, MODE_DHW, MODE_AUTO,
     build_ack_realtime,
     build_ack_setparams,
     build_request_realtime,
     build_set_power,
     build_set_mode,
-    build_set_setpoint,
     build_set_dhw_setpoint,
     build_set_heating_curve,
     build_set_hbh,
@@ -113,7 +110,6 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
             name=DOMAIN,
             update_interval=POLL_INTERVAL,
         )
-        self._mn_config       = mn
         self._mn              = mn
         self._flow_rate_lps   = flow_rate_lps
         self._client          = HeikoTCPClient(host, port, self._on_frame, self._on_connection_change)
@@ -357,11 +353,6 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         await self._send_write(build_set_mode(self._mn, mode),
                                f"Mode → {mode}")
 
-    async def async_set_setpoint(self, setpoint_celsius: float) -> None:
-        """Set heating circuit water setpoint. Write index 37."""
-        await self._send_write(build_set_setpoint(self._mn, setpoint_celsius),
-                               f"Heating setpoint → {setpoint_celsius:.1f}°C")
-
     async def async_set_dhw_setpoint(self, setpoint_celsius: float) -> None:
         """Set DHW (hot water) target temperature. Write index 54."""
         await self._send_write(build_set_dhw_setpoint(self._mn, setpoint_celsius),
@@ -440,5 +431,5 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         """Send a CMD 0x05 write frame and log it."""
         ok = await self._client.send(frame_bytes)
         if not ok:
-            raise RuntimeError(f"Failed to send write command: {description}")
+            raise HomeAssistantError(f"Failed to send write command: {description}")
         _LOGGER.info("Write: %s", description)

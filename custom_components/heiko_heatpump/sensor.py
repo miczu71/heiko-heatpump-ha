@@ -7,7 +7,6 @@ All sensors update as soon as a new CMD 0x01 frame is received (~30 s cadence).
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from typing import Optional
 
@@ -27,15 +26,13 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfTime,
 )
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import DeviceInfo, EntityCategory
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MANUFACTURER, MODEL
+from .const import DOMAIN
 from .coordinator import HeikoCoordinator
-
-_LOGGER = logging.getLogger(__name__)
+from .entity import HeikoBaseEntity
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -365,7 +362,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class HeikoSensorEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
+class HeikoSensorEntity(HeikoBaseEntity, SensorEntity):
     """A single numeric sensor entity backed by the Heiko coordinator."""
 
     entity_description: HeikoSensorEntityDescription
@@ -376,15 +373,8 @@ class HeikoSensorEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
         description: HeikoSensorEntityDescription,
         mn_str: str,
     ) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, mn_str, description.key)
         self.entity_description = description
-        self._attr_unique_id = f"{mn_str}_{description.key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mn_str)},
-            name="Heiko Heat Pump",
-            manufacturer=MANUFACTURER,
-            model=MODEL,
-        )
 
     @property
     def native_value(self) -> Optional[float]:
@@ -396,13 +386,8 @@ class HeikoSensorEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
             return None
         return round(raw, self.entity_description.precision)
 
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from coordinator (called on push frames too)."""
-        self.async_write_ha_state()
 
-
-class HeikoWaterPumpEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
+class HeikoWaterPumpEntity(HeikoBaseEntity, SensorEntity):
     """
     Water pump state rendered as human-readable text: 'on' or 'off'.
     Raw value from protocol: 1.0 = on, 0.0 = off.
@@ -412,14 +397,7 @@ class HeikoWaterPumpEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
     _attr_icon = "mdi:pump"
 
     def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{mn_str}_WaterPump_text"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mn_str)},
-            name="Heiko Heat Pump",
-            manufacturer=MANUFACTURER,
-            model=MODEL,
-        )
+        super().__init__(coordinator, mn_str, "WaterPump_text")
 
     @property
     def native_value(self) -> Optional[str]:
@@ -430,12 +408,8 @@ class HeikoWaterPumpEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
             return None
         return "on" if raw >= 0.5 else "off"
 
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self.async_write_ha_state()
 
-
-class HeikoLastSeenSensor(CoordinatorEntity[HeikoCoordinator], SensorEntity):
+class HeikoLastSeenSensor(HeikoBaseEntity, SensorEntity):
     """Timestamp of the last frame received from the heat pump."""
 
     _attr_name = "Last Seen"
@@ -443,25 +417,14 @@ class HeikoLastSeenSensor(CoordinatorEntity[HeikoCoordinator], SensorEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{mn_str}_last_seen"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mn_str)},
-            name="Heiko Heat Pump",
-            manufacturer=MANUFACTURER,
-            model=MODEL,
-        )
+        super().__init__(coordinator, mn_str, "last_seen")
 
     @property
     def native_value(self):
         return self.coordinator.last_seen
 
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self.async_write_ha_state()
 
-
-class HeikoReconnectSensor(CoordinatorEntity[HeikoCoordinator], SensorEntity):
+class HeikoReconnectSensor(HeikoBaseEntity, SensorEntity):
     """Number of times the TCP client has reconnected since HA started."""
 
     _attr_name = "Reconnect Count"
@@ -470,22 +433,11 @@ class HeikoReconnectSensor(CoordinatorEntity[HeikoCoordinator], SensorEntity):
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
 
     def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{mn_str}_reconnect_count"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mn_str)},
-            name="Heiko Heat Pump",
-            manufacturer=MANUFACTURER,
-            model=MODEL,
-        )
+        super().__init__(coordinator, mn_str, "reconnect_count")
 
     @property
     def native_value(self) -> int:
         return self.coordinator.reconnect_count
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self.async_write_ha_state()
 
 
 _WORKING_MODE_NAMES: dict[int, str] = {
@@ -498,7 +450,7 @@ _WORKING_MODE_NAMES: dict[int, str] = {
 }
 
 
-class HeikoWorkingModeTextEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
+class HeikoWorkingModeTextEntity(HeikoBaseEntity, SensorEntity):
     """
     Working mode rendered as human-readable text matching the cloud UI labels.
     Raw value from protocol (index 19, par18): 0–5.
@@ -508,14 +460,7 @@ class HeikoWorkingModeTextEntity(CoordinatorEntity[HeikoCoordinator], SensorEnti
     _attr_icon = "mdi:cog-transfer"
 
     def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{mn_str}_WorkingMode_text"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mn_str)},
-            name="Heiko Heat Pump",
-            manufacturer=MANUFACTURER,
-            model=MODEL,
-        )
+        super().__init__(coordinator, mn_str, "WorkingMode_text")
 
     @property
     def native_value(self) -> Optional[str]:
@@ -533,10 +478,6 @@ class HeikoWorkingModeTextEntity(CoordinatorEntity[HeikoCoordinator], SensorEnti
         raw = self.coordinator.data.get("WorkingMode")
         return {"raw_value": raw} if raw is not None else {}
 
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self.async_write_ha_state()
-
 
 # Mode setting labels — write-side convention, matches par4 from cloud setdata API:
 # 0=Standby, 1=Heating, 2=Cooling, 3=DHW, 4=Auto
@@ -549,7 +490,7 @@ _MODE_SETDATA_NAMES: dict[int, str] = {
 }
 
 
-class HeikoModeSettingEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
+class HeikoModeSettingEntity(HeikoBaseEntity, SensorEntity):
     """
     Configured working mode (the mode SETTING, not the instantaneous state).
     Read from CMD 0x02 setdata idx=3 — equivalent to par4 in the cloud API.
@@ -560,14 +501,7 @@ class HeikoModeSettingEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
     _attr_icon = "mdi:cog-transfer"
 
     def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{mn_str}_ModeSetting"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mn_str)},
-            name="Heiko Heat Pump",
-            manufacturer=MANUFACTURER,
-            model=MODEL,
-        )
+        super().__init__(coordinator, mn_str, "ModeSetting")
 
     @property
     def native_value(self) -> Optional[str]:
@@ -584,8 +518,4 @@ class HeikoModeSettingEntity(CoordinatorEntity[HeikoCoordinator], SensorEntity):
             return {}
         raw = self.coordinator.data.get("Mode_Setdata")
         return {"raw_value": raw} if raw is not None else {}
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self.async_write_ha_state()
 

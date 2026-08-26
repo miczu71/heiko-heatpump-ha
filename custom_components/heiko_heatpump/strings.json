@@ -19,5 +19,26 @@
     "abort": {
       "already_configured": "This heat pump (MN) is already configured."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "host": "Bridge IP address",
+          "port": "TCP port",
+          "mn": "Unit MN / MAC address (12 hex chars, e.g. A1B2C3D4E5F6)",
+          "flow_rate_lps": "Water flow rate (L/s) — from manual: Eko II 6=0.29, 9=0.43, 12=0.57, 15=0.714, 19=0.92"
+        }
+      }
+    },
+    "error": {
+      "invalid_mn": "MN must be exactly 12 hex characters (6 bytes), e.g. A1B2C3D4E5F6 or F4:70:0C:77:F0:1A."
+    }
+  },
+  "issues": {
+    "pump_not_responding": {
+      "title": "Heat pump not responding",
+      "description": "No data received from the heat pump for {minutes} minutes (last frame at {last_seen}).\n\nTroubleshooting steps:\n1. Check that the USR-W600 bridge is powered on\n2. Check that the W600 is connected to WiFi (its LED should be solid)\n3. Check that the heat pump RS-485 cable is connected to the W600\n4. If the W600 recently rebooted, it may take up to 60 s for the pump to start pushing frames again\n\nThis alert will clear automatically when communication is restored."
+    }
   }
 }

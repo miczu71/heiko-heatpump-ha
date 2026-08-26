@@ -76,7 +76,7 @@ class HeikoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Validate MN format
             try:
                 mn_bytes = _validate_mn(mn_str)
-            except (ValueError, Exception) as exc:
+            except ValueError as exc:
                 errors[CONF_MN] = "invalid_mn"
                 _LOGGER.debug("Invalid MN %r: %s", mn_str, exc)
                 mn_bytes = None
@@ -123,7 +123,7 @@ class HeikoOptionsFlow(config_entries.OptionsFlow):
             mn_str = user_input[CONF_MN].strip()
             try:
                 _validate_mn(mn_str)
-            except (ValueError, Exception):
+            except ValueError:
                 errors[CONF_MN] = "invalid_mn"
             else:
                 self.hass.config_entries.async_update_entry(

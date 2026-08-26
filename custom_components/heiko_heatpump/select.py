@@ -18,12 +18,11 @@ import logging
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MANUFACTURER, MODEL
+from .const import DOMAIN
 from .coordinator import HeikoCoordinator
+from .entity import HeikoBaseEntity
 from .protocol import (
     MODE_STANDBY, MODE_HEATING, MODE_COOLING, MODE_DHW, MODE_AUTO,
 )
@@ -49,7 +48,7 @@ async def async_setup_entry(
     async_add_entities([HeikoModeSelectEntity(coordinator, entry.data["mn"])])
 
 
-class HeikoModeSelectEntity(CoordinatorEntity[HeikoCoordinator], SelectEntity):
+class HeikoModeSelectEntity(HeikoBaseEntity, SelectEntity):
     """
     Dropdown select for heat pump working mode.
     Reads from WorkingMode sensor (index 2, par1).
@@ -62,14 +61,7 @@ class HeikoModeSelectEntity(CoordinatorEntity[HeikoCoordinator], SelectEntity):
     _attr_options = list(_OPTIONS.keys())
 
     def __init__(self, coordinator: HeikoCoordinator, mn_str: str) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{mn_str}_mode_select"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, mn_str)},
-            name="Heiko Heat Pump",
-            manufacturer=MANUFACTURER,
-            model=MODEL,
-        )
+        super().__init__(coordinator, mn_str, "mode_select")
         self._optimistic: str | None = None
 
     @property

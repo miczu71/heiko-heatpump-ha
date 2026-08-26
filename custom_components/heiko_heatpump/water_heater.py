@@ -10,7 +10,7 @@ from homeassistant.components.water_heater import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
@@ -81,7 +81,3 @@ class HeikoDHWWaterHeater(HeikoBaseEntity, WaterHeaterEntity):
         mode = _OP_TO_MODE.get(operation_mode)
         if mode is not None:
             await self.coordinator.async_set_mode(mode)
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self.async_write_ha_state()
