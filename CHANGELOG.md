@@ -3,6 +3,16 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.8.6] - 2026-08-26
+
+### Fixed (test suite only — no production code changed)
+- `tests/test_protocol.py` had 12 failing tests, all dating to the initial v1.0.0 commit and never updated after later empirical (MITM traffic-capture) corrections to the protocol constants they test against:
+  - `EXAMPLE_FRAME_HEX` fixture was missing one `00 00` byte pair in its zero-padding block (67-byte/54-byte-payload frame documented in the comments was actually only 65/52 bytes). Restoring the missing pair makes all 8 documented float values match exactly (Tuo=47.88°C, Tui=44.37°C, Tup=47.66°C, Tw=37.03°C, Tc=25.74°C, Tv1=22.64°C, Tv2=22.61°C, Tr=28.84°C)
+  - `test_build_set_power_on`/`test_build_set_power_off` asserted write index 39; the real, MITM-confirmed value is `WRITE_IDX_POWER = 0` (see v1.3.0 changelog: "Write indices confirmed by CMD 0x05 TCP traffic capture")
+  - `test_build_set_setpoint_value` asserted write index 38; the real, MITM-confirmed value is `WRITE_IDX_HEATING = 37`
+  - `test_build_request_realtime_structure` asserted the frame header is `AA 55`; server→unit frames (which CMD 0x06 is) correctly use `55 AA` — see `_build_frame`'s docstring: "reverse-engineered by MITM'ing the cloud's writes... every CMD 0x05 write we sent was silently discarded by the pump" prior to this being found
+  - All 32 tests pass after the fix; verified none of the previously-passing tests depend on the corrected values
+
 ## [1.8.5] - 2026-08-26
 
 ### Fixed

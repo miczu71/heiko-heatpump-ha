@@ -43,7 +43,7 @@ from custom_components.heiko_heatpump.protocol import (
 # Verified empirically: Tuo@payload[22:26]=47.88°C, Tui@[26:30]=44.37°C, etc.
 EXAMPLE_FRAME_HEX = (
     "AA 55 01 00 00 00 00 00 00 01 B7 00 01 "   # header (13 bytes)
-    "00 00 00 00 00 00 00 00 00 00 00 00 "       # payload prefix + indices 0-2 zeros
+    "00 00 00 00 00 00 00 00 00 00 00 00 00 00 " # payload prefix + indices 0-2 zeros
     "80 3F 00 00 "                               # index 3: 1.0 (some flag)
     "00 00 00 00 "                               # index 4: 0.0
     "1E 85 3F 42 "                              # index 5 Tuo  = 47.88 °C
@@ -171,9 +171,11 @@ class TestBuildFrames:
     def test_build_request_realtime_structure(self):
         """CMD 0x06 frame should have correct structure and CRC-covered bytes."""
         raw = build_request_realtime(TEST_MN)
-        # Header
-        assert raw[0] == 0xAA
-        assert raw[1] == 0x55
+        # Header — server→unit direction (55 AA), not the AA 55 used by the
+        # pump's own upstream frames. See _build_frame docstring: this was
+        # reverse-engineered by MITM'ing the cloud's writes.
+        assert raw[0] == 0x55
+        assert raw[1] == 0xAA
         # Target
         assert raw[2] == 0x01
         # MN
@@ -205,24 +207,24 @@ class TestBuildFrames:
         assert raw[12] == CMD_WRITE
         # Payload starts at byte 13; first 2 bytes = param index 38 LE
         param_idx = struct.unpack_from('<H', raw, 13)[0]
-        assert param_idx == 38, f"Expected param index 38 (Setpoint), got {param_idx}"
+        assert param_idx == 37, f"Expected param index 37 (Setpoint), got {param_idx}"
         # Next 4 bytes = float value
         val = struct.unpack_from('<f', raw, 15)[0]
         assert abs(val - setpoint) < 0.001, f"Expected {setpoint}, got {val}"
 
     def test_build_set_power_on(self):
-        """CMD 0x05 power-on frame should set param 39 to 1.0."""
+        """CMD 0x05 power-on frame should set param 0 to 1.0."""
         raw = build_set_power(TEST_MN, on=True)
         param_idx = struct.unpack_from('<H', raw, 13)[0]
-        assert param_idx == 39, f"Expected param index 39 (Sw), got {param_idx}"
+        assert param_idx == 0, f"Expected param index 0 (Power), got {param_idx}"
         val = struct.unpack_from('<f', raw, 15)[0]
         assert abs(val - 1.0) < 0.001
 
     def test_build_set_power_off(self):
-        """CMD 0x05 power-off frame should set param 39 to 0.0."""
+        """CMD 0x05 power-off frame should set param 0 to 0.0."""
         raw = build_set_power(TEST_MN, on=False)
         param_idx = struct.unpack_from('<H', raw, 13)[0]
-        assert param_idx == 39
+        assert param_idx == 0
         val = struct.unpack_from('<f', raw, 15)[0]
         assert abs(val - 0.0) < 0.001
 
