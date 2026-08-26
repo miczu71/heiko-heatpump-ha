@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.8.5] - 2026-08-26
+
+### Fixed
+- The 1.8.4 fix for raw options-dialog labels targeted the wrong file: `strings.json` is only read by the upstream hassfest/Lokalise translation pipeline for core integrations and is never loaded at runtime for a custom integration like this one. HA actually reads `translations/en.json`, which had no `config` section at all (only `issues`) — meaning the **initial setup form** has been showing raw field keys (`host`, `port`, `mn`, `flow_rate_lps`) since day one, not just the options/reconfigure dialog. Verified empirically via Playwright against the live UI before and after this fix. Both `config` and `options` sections are now mirrored into `translations/en.json`
+
 ## [1.8.4] - 2026-08-26
 
 ### Removed (dead code, no behavior change)
