@@ -46,6 +46,7 @@ from .protocol import (
     build_set_anti_leg_duration,
     build_set_anti_leg_finish,
     extract_all_params,
+    extract_all_floats,
 )
 from .tcp_client import HeikoTCPClient
 
@@ -103,6 +104,7 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         port: int,
         mn: bytes,
         flow_rate_lps: float = DEFAULT_FLOW_RATE,
+        debug_slot_logging: bool = False,
     ) -> None:
         super().__init__(
             hass,
@@ -112,12 +114,24 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         )
         self._mn              = mn
         self._flow_rate_lps   = flow_rate_lps
+        self._debug_slot_logging = debug_slot_logging
         self._client          = HeikoTCPClient(host, port, self._on_frame, self._on_connection_change)
         self._latest_data: dict[str, float] = {}
         self._last_seen: datetime | None = None
         self._reconnect_count: int = 0
         self._ever_connected: bool = False
         self._issue_active: bool = False
+
+        # ── Discovery/diagnostic state (Etap 1) ─────────────────────────────
+        # Full, unfiltered float tables per frame type — everything the pump
+        # sends, not just the ~24 slots currently named in PARAM_MAP. Exposed
+        # via diagnostics.py; also used below to log every slot change when
+        # debug_slot_logging is enabled (the "slot-watcher").
+        self._raw_realtime: bytes | None = None
+        self._raw_setdata: bytes | None = None
+        self._floats_realtime: dict[int, float] = {}
+        self._floats_setdata: dict[int, float] = {}
+        self._frame_counts: dict[int, int] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -140,6 +154,36 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
     @property
     def reconnect_count(self) -> int:
         return self._reconnect_count
+
+    # ── Discovery/diagnostic accessors (Etap 1, used by diagnostics.py) ────
+
+    @property
+    def raw_realtime_hex(self) -> str | None:
+        return self._raw_realtime.hex() if self._raw_realtime is not None else None
+
+    @property
+    def raw_setdata_hex(self) -> str | None:
+        return self._raw_setdata.hex() if self._raw_setdata is not None else None
+
+    @property
+    def realtime_payload_len(self) -> int | None:
+        return len(self._raw_realtime) if self._raw_realtime is not None else None
+
+    @property
+    def setdata_payload_len(self) -> int | None:
+        return len(self._raw_setdata) if self._raw_setdata is not None else None
+
+    @property
+    def frame_counts(self) -> dict[int, int]:
+        return dict(self._frame_counts)
+
+    @property
+    def all_floats_realtime(self) -> dict[int, float]:
+        return dict(self._floats_realtime)
+
+    @property
+    def all_floats_setdata(self) -> dict[int, float]:
+        return dict(self._floats_setdata)
 
     async def _on_connection_change(self, is_connected: bool) -> None:
         """Called by HeikoTCPClient when the TCP connection is established or lost."""
@@ -207,6 +251,7 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         CMD 0x02: setdata snapshot (every ~3 min) — reads DHW setpoint.
         """
         self._last_seen = dt_util.utcnow()
+        self._frame_counts[frame.command] = self._frame_counts.get(frame.command, 0) + 1
         if self._issue_active:
             async_delete_issue(self.hass, DOMAIN, _ISSUE_ID)
             self._issue_active = False
@@ -234,6 +279,16 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         await self._client.send(ack)
 
         payload = frame.payload
+        self._raw_setdata = payload
+
+        # ── Full unfiltered float table + slot-watcher (Etap 1 discovery) ───
+        new_floats = extract_all_floats(payload)
+        if self._debug_slot_logging and _LOGGER.isEnabledFor(logging.INFO):
+            for idx, new_val in new_floats.items():
+                old_val = self._floats_setdata.get(idx)
+                if old_val != new_val:
+                    _LOGGER.info("setdata slot %d: %s → %s", idx, old_val, new_val)
+        self._floats_setdata = new_floats
 
         def _read_float(idx: int) -> float | None:
             off = 2 + idx * 4
@@ -273,7 +328,19 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
             )
             self._mn = frame.mn
 
-        params = extract_all_params(frame.payload)
+        payload = frame.payload
+        self._raw_realtime = payload
+
+        # ── Full unfiltered float table + slot-watcher (Etap 1 discovery) ───
+        new_floats = extract_all_floats(payload)
+        if self._debug_slot_logging and _LOGGER.isEnabledFor(logging.INFO):
+            for idx, new_val in new_floats.items():
+                old_val = self._floats_realtime.get(idx)
+                if old_val != new_val:
+                    _LOGGER.info("realtime slot %d: %s → %s", idx, old_val, new_val)
+        self._floats_realtime = new_floats
+
+        params = extract_all_params(payload)
 
         if not params:
             _LOGGER.warning("CMD 0x01 frame yielded no parameters (payload too short?)")
@@ -313,12 +380,23 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
             if denom > 0.1:
                 params["COP_carnot"] = round(tw_k / denom, 2)
 
+        # COP_estimated / Thermal_power are only meaningful in Heating mode.
+        # WorkingMode == 2.0 (Heating) is required — not just WaterPump == 1.0 —
+        # because in DHW mode (WorkingMode == 1.0) the circulation pump keeps
+        # running while Tw reads the DHW tank and Tc reads the (idle) floor
+        # heating return: two unrelated circuits. The resulting "ΔT" is not a
+        # real gradient and was observed producing COP_estimated of 11–15 on a
+        # live DHW cycle (2026-09-17) despite WaterPump == 1.0 throughout — the
+        # ΔT-based guard alone (even capped at 15 °C) does not catch this.
+        working_mode = params.get("WorkingMode")
+        water_pump = params.get("WaterPump")
         frequency = params.get("Frequency")
-        if (tw is not None and tc is not None and power_w is not None
+        if (working_mode == 2.0 and water_pump == 1.0
+                and tw is not None and tc is not None and power_w is not None
                 and frequency is not None and frequency > 5.0 and power_w > 50.0):
             dt_floor = tw - tc
             # Cap ΔT at 15 °C: a larger delta means Tw and Tc are from different
-            # circuits (e.g. DHW tank vs. heating return), producing a bogus COP.
+            # circuits, producing a bogus COP.
             if 0.5 < dt_floor <= 15.0:
                 q_thermal = self._flow_rate_lps * 4186.0 * dt_floor
                 params["COP_estimated"] = round(q_thermal / power_w, 2)

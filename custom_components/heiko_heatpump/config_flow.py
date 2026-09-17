@@ -13,7 +13,16 @@ from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 
-from .const import DOMAIN, DEFAULT_HOST, DEFAULT_PORT, CONF_MN, CONF_FLOW_RATE, DEFAULT_FLOW_RATE
+from .const import (
+    DOMAIN,
+    DEFAULT_HOST,
+    DEFAULT_PORT,
+    CONF_MN,
+    CONF_FLOW_RATE,
+    DEFAULT_FLOW_RATE,
+    CONF_DEBUG_SLOT_LOGGING,
+    DEFAULT_DEBUG_SLOT_LOGGING,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -133,6 +142,7 @@ class HeikoOptionsFlow(config_entries.OptionsFlow):
                         CONF_PORT:      int(user_input[CONF_PORT]),
                         CONF_MN:        mn_str.upper().replace(":", ""),
                         CONF_FLOW_RATE: float(user_input[CONF_FLOW_RATE]),
+                        CONF_DEBUG_SLOT_LOGGING: bool(user_input[CONF_DEBUG_SLOT_LOGGING]),
                     },
                 )
                 await self.hass.config_entries.async_reload(self._entry.entry_id)
@@ -145,6 +155,10 @@ class HeikoOptionsFlow(config_entries.OptionsFlow):
                 vol.Required(CONF_PORT,      default=current.get(CONF_PORT, DEFAULT_PORT)): int,
                 vol.Required(CONF_MN,        default=current.get(CONF_MN, "")): str,
                 vol.Required(CONF_FLOW_RATE, default=current.get(CONF_FLOW_RATE, DEFAULT_FLOW_RATE)): vol.Coerce(float),
+                vol.Required(
+                    CONF_DEBUG_SLOT_LOGGING,
+                    default=current.get(CONF_DEBUG_SLOT_LOGGING, DEFAULT_DEBUG_SLOT_LOGGING),
+                ): bool,
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

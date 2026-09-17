@@ -299,13 +299,48 @@ def extract_float(payload: bytes, param_index: int) -> Optional[float]:
     return float(value)
 
 
+# Sensors not fitted on every unit report a fixed sentinel instead of a real
+# reading (confirmed: -99 °C on Tv1/Tv2 when the EEV temperature sensor for
+# that circuit is absent). Filtered out here rather than left as a bogus
+# temperature value.
+_UNFITTED_SENTINEL_KEYS = {"Tv1", "Tv2"}
+_UNFITTED_SENTINEL_VALUE = -99.0
+
+
 def extract_all_params(payload: bytes) -> dict[str, float]:
     """Extract all known named parameters from a CMD 0x01 payload."""
     result: dict[str, float] = {}
     for name, (index, unit, desc) in PARAM_MAP.items():
         value = extract_float(payload, index)
-        if value is not None:
-            result[name] = value
+        if value is None:
+            continue
+        if name in _UNFITTED_SENTINEL_KEYS and value == _UNFITTED_SENTINEL_VALUE:
+            continue
+        result[name] = value
+    return result
+
+
+def extract_all_floats(payload: bytes) -> dict[int, float]:
+    """
+    Extract every float slot present in the payload, indexed by slot number —
+    nothing filtered by PARAM_MAP.
+
+    Diagnostic/discovery helper: CMD 0x02 (setdata) frames carry far more slots
+    than the ~24 currently named in PARAM_MAP (community table suggests ≥121).
+    This walks the payload until a full 4-byte float no longer fits, returning
+    every slot regardless of whether it is currently mapped to a named entity.
+    Used by diagnostics.py and the coordinator's slot-watcher (Etap 1).
+    """
+    result: dict[int, float] = {}
+    index = 0
+    while True:
+        offset = PAYLOAD_FLOAT_PREFIX + index * 4
+        if offset + 4 > len(payload):
+            break
+        value = struct.unpack_from('<f', payload, offset)[0]
+        if -1e6 < value < 1e6:
+            result[index] = float(value)
+        index += 1
     return result
 
 
