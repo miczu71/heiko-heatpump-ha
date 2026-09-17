@@ -86,6 +86,65 @@ _SETDATA_MAP: list[tuple[int, str, float | None, int | None]] = [
     (31,  "Curve_Water_3",       None, 1),
     (32,  "Curve_Water_4",       None, 1),
     (33,  "Curve_Water_5",       None, 1),
+
+    # ── Etap 4 (2026-09-17): named via portal myheatpump.com, cross-validated ──
+    # against a live diagnostics dump (74 pairs, 0 mismatches) — see
+    # docs/heiko_register_map.md in the homeassistant-config repo. Read-only:
+    # no write helpers added for any of these (that decision is Etap 5).
+    #
+    # idx 50 is NOT re-added here: it's already "HBH_State" above, written by
+    # async_set_hbh()/WRITE_IDX_HBH (marked "confirmed MITM" — tested by
+    # traffic capture). The portal labels it "Priority for Backup Heating
+    # Sources (HWTBH)" (par51), not an HBH on/off — the existing key name may
+    # be imprecise, but the write behaviour was empirically confirmed and is
+    # out of scope for this read-only pass. Left as-is; flag for Etap 5.
+    (44,  "Vacation_Mode",              None, None),
+    (45,  "Vacation_DHW_Drop",          None, 1),
+    (46,  "Vacation_Heating_Drop",      None, 1),
+
+    (66,  "Circuit2_Enabled",               None, None),
+    (67,  "Circuit2_Cooling_Setpoint",      None, 1),
+    (68,  "Circuit2_HeatingCurve_State",    None, None),
+    (69,  "Circuit2_Curve_Water_1",         None, 1),
+    (70,  "Circuit2_Curve_Water_2",         None, 1),
+    (71,  "Circuit2_Curve_Water_3",         None, 1),
+    (72,  "Circuit2_Curve_Water_4",         None, 1),
+    (73,  "Circuit2_Curve_Water_5",         None, 1),
+    (74,  "Circuit2_Heating_Setpoint_NoCurve", None, 1),
+
+    (47,  "Backup_Heating_For_Heating",         None, None),
+    (48,  "Backup_Priority_HBH",                None, None),
+    (49,  "Backup_Source_DHW",                  None, None),
+    (51,  "Backup_HBH_Accum_Value",             None, 1),
+    (52,  "Backup_HWTBH_Temp_Rise_Interval",    None, 1),
+
+    (56,  "Shifting_Priority",             None, None),
+    (57,  "Shifting_Priority_Start_Temp",  None, 1),
+    (58,  "Sanitary_Min_Working_Hours",    None, 1),
+    (59,  "Heating_Max_Working_Hours",     None, 1),
+    (60,  "Allowable_Temp_Drift_Heating",  None, 1),
+    (61,  "DHW_Backup_For_Shifting",       None, None),
+
+    (63,  "Reheating_Function",    None, None),
+    (64,  "Reheating_Set_Temp",    None, 1),
+    (65,  "Reheating_Restart_DT",  None, 1),
+
+    (77,  "Reduced_Setpoint",         None, None),
+    (78,  "Reduced_Setpoint_Drop",    None, 1),
+    (79,  "Quiet_Operation",          None, None),
+    (80,  "Quiet_Allowable_Drift",    None, 1),
+
+    (82,  "Electrical_Utility_Lock",  None, None),
+    (83,  "HBH_During_Lock",          None, None),
+    (84,  "P0_During_Lock",           None, None),
+
+    (18,  "Heating_Cooling_Timer",       None, None),
+    (34,  "Room_Temp_Effect_On_Curve",   None, None),
+    (8,   "Cooling_Heating_Switch",      None, None),
+    (10,  "Ambient_Temp_Start_Heating",  None, 1),
+    (11,  "Ambient_Temp_Start_Cooling",  None, 1),
+    (85,  "Panel_Backlight",             None, None),
+    (121, "Curve2_Parallel_Move",        None, 1),
 ]
 # Derived frozenset of keys that _handle_setdata writes — used to preserve them across
 # realtime frames without manually maintaining a second list.

@@ -141,6 +141,12 @@ PARAM_MAP: dict[str, tuple[int, str, str]] = {
     "Time_AH":     (42,  "min",   "AH auxiliary heater working time"),
     "Time_HBH":    (43,  "min",   "HBH backup heater working time"),
     "Time_HWTBH":  (44,  "min",   "HWTBH hot-water backup heater working time"),
+
+    # ── Water pump status bits (Etap 4, named via portal 17.09.2026) ──────────
+    # Portal par34/par35 (realtime idx = parN+1), "Pump statue-P1"/"P2".
+    # WaterPump above (idx 34, par33/"Pump statue-P0") already existed.
+    "WaterPump_P1": (35,  "",      "Water pump status P1 (par34, cloud label 'Pump statue-P1')"),
+    "WaterPump_P2": (36,  "",      "Water pump status P2 (par35, cloud label 'Pump statue-P2')"),
 }
 
 
