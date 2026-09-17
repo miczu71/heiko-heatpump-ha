@@ -514,10 +514,8 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
 
     async def async_set_vacation_mode(self, on: bool) -> None:
         """
-        Enable/disable Vacation Mode. Write index 44 — NOT MITM-confirmed,
-        inferred from the read/write-same-idx convention used everywhere
-        else in this file. First real write should be followed by a
-        diagnostics dump read-back to confirm slot 44 actually changed.
+        Enable/disable Vacation Mode. Write index 44 — confirmed 2026-09-17
+        by a real turn_on/turn_off + diagnostics dump read-back (0→1→0).
         """
         await self._send_write(build_set_vacation_mode(self._mn, on),
                                f"Vacation mode → {'ON' if on else 'OFF'}")

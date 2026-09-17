@@ -33,9 +33,7 @@ set_heating_setpoint:
 
 set_vacation_mode:
   name: Set Vacation Mode
-  description: >-
-    Enable or disable Vacation Mode. Write index not MITM-confirmed —
-    verify the change took effect via the diagnostics dump after first use.
+  description: Enable or disable Vacation Mode.
   fields:
     enabled:
       name: Enabled

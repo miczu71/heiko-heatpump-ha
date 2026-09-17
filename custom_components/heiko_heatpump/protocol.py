@@ -511,12 +511,10 @@ WRITE_IDX_ANTI_LEG_FINISH    = 43   # minutes finish-time / cycle timeout (typic
 
 # Vacation Mode — idx 44, named via portal 2026-09-17 (par45), confirmed by
 # read-back cross-validation (74 pairs, 0 mismatches — docs/heiko_register_map.md
-# in homeassistant-config). NOT MITM-confirmed for writes: inferred from the
-# established convention that every other setdata write here targets the same
-# idx it reads back on (par54→WRITE_IDX_DHW=54, par63→WRITE_IDX_DHW_STORAGE=62,
-# etc.) — untested until the first real write. Verify via diagnostics dump
-# read-back before trusting.
-WRITE_IDX_VACATION_MODE      = 44   # 0.0=off, 1.0=on  (inferred, NOT MITM-confirmed)
+# in homeassistant-config). Write CONFIRMED 2026-09-17: real turn_on/turn_off
+# via switch.vacation_mode, each followed by a diagnostics dump read-back
+# showing Vacation_Mode flip 0→1→0 exactly as written.
+WRITE_IDX_VACATION_MODE      = 44   # 0.0=off, 1.0=on  (confirmed by write+read-back test)
 
 # Working mode values (confirmed from traffic capture)
 MODE_STANDBY  = 0   # likely — power-off state
@@ -577,8 +575,7 @@ def build_set_dhw_setpoint(mn: bytes, setpoint_celsius: float, **kwargs) -> byte
 def build_set_vacation_mode(mn: bytes, on: bool, **kwargs) -> bytes:
     """
     Enable/disable Vacation Mode. Write index 44 (par45 on the portal).
-    NOT MITM-confirmed — see WRITE_IDX_VACATION_MODE docstring above.
-    Verify with a diagnostics read-back after the first real write.
+    Confirmed 2026-09-17 by a real write + diagnostics read-back (0→1→0).
     """
     return build_write_param(mn, WRITE_IDX_VACATION_MODE, 1.0 if on else 0.0, **kwargs)
 
