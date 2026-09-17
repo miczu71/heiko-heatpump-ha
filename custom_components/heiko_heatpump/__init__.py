@@ -24,7 +24,16 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 
-from .const import DOMAIN, CONF_HOST, CONF_PORT, CONF_MN, CONF_FLOW_RATE, DEFAULT_FLOW_RATE
+from .const import (
+    DOMAIN,
+    CONF_HOST,
+    CONF_PORT,
+    CONF_MN,
+    CONF_FLOW_RATE,
+    DEFAULT_FLOW_RATE,
+    CONF_DEBUG_SLOT_LOGGING,
+    DEFAULT_DEBUG_SLOT_LOGGING,
+)
 from .coordinator import HeikoCoordinator
 from .protocol import MODE_STANDBY, MODE_HEATING, MODE_COOLING, MODE_DHW, MODE_AUTO
 
@@ -210,17 +219,56 @@ def _register_services(hass: HomeAssistant) -> None:
     )
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """
+    Back-fill config entry keys added after some entries were created.
+
+    Etap 0 (2026-09) added flow_rate_lps to the options flow schema, but the
+    entry created before that change has no such key in entry.data — it works
+    today only because async_setup_entry() falls back to DEFAULT_FLOW_RATE at
+    read time. This migration makes that fallback permanent/visible in the
+    stored entry instead of relying on the runtime default forever, and does
+    the same for debug_slot_logging (added in Etap 1).
+    """
+    if entry.version != 1:
+        # Unknown future major version — do not attempt to migrate.
+        return False
+
+    new_data = dict(entry.data)
+    added: list[str] = []
+    if CONF_FLOW_RATE not in new_data:
+        new_data[CONF_FLOW_RATE] = DEFAULT_FLOW_RATE
+        added.append(CONF_FLOW_RATE)
+    if CONF_DEBUG_SLOT_LOGGING not in new_data:
+        new_data[CONF_DEBUG_SLOT_LOGGING] = DEFAULT_DEBUG_SLOT_LOGGING
+        added.append(CONF_DEBUG_SLOT_LOGGING)
+
+    if added:
+        hass.config_entries.async_update_entry(entry, data=new_data)
+        _LOGGER.info(
+            "Migrated Heiko Heat Pump config entry %s: back-filled %s",
+            entry.entry_id, ", ".join(added),
+        )
+
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Heiko Heat Pump from a config entry."""
     host      = entry.data[CONF_HOST]
     port      = int(entry.data[CONF_PORT])
     mn_str    = entry.data[CONF_MN]
     flow_rate = float(entry.data.get(CONF_FLOW_RATE, DEFAULT_FLOW_RATE))
+    debug_slot_logging = bool(entry.data.get(CONF_DEBUG_SLOT_LOGGING, DEFAULT_DEBUG_SLOT_LOGGING))
 
     # Parse MN hex string → 6 bytes
     mn = bytes.fromhex(mn_str)
 
-    coordinator = HeikoCoordinator(hass, host, port, mn, flow_rate_lps=flow_rate)
+    coordinator = HeikoCoordinator(
+        hass, host, port, mn,
+        flow_rate_lps=flow_rate,
+        debug_slot_logging=debug_slot_logging,
+    )
 
     # Store coordinator for platforms to access
     hass.data.setdefault(DOMAIN, {})

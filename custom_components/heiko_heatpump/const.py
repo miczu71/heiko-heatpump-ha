@@ -7,6 +7,7 @@ CONF_HOST      = "host"
 CONF_PORT      = "port"
 CONF_MN        = "mn"   # stored as hex string, e.g. "A1B2C3D4E5F6"
 CONF_FLOW_RATE = "flow_rate_lps"  # water flow rate in L/s (for COP calculation)
+CONF_DEBUG_SLOT_LOGGING = "debug_slot_logging"  # log every changed setdata/realtime slot at INFO
 
 # Default connection parameters
 DEFAULT_PORT      = 8899
@@ -15,6 +16,8 @@ DEFAULT_HOST      = ""
 # Default flow rate: Neoheat Eko II 6 nominal = 0.29 L/s (from manual)
 # Eko II 6=0.29, Eko II 9=0.43, Eko II 12=0.57, Eko II 15=0.714, Eko II 19=0.92
 DEFAULT_FLOW_RATE = 0.29  # Eko II 6 nominal; change to 0.43 for 9kW, 0.57 for 12kW  # L/s
+
+DEFAULT_DEBUG_SLOT_LOGGING = False
 
 # Device info
 MANUFACTURER   = "Heiko / Neoheat / ECOtouch"
