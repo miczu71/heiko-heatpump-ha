@@ -32,6 +32,8 @@ from .protocol import (
     build_set_power,
     build_set_mode,
     build_set_dhw_setpoint,
+    build_set_setpoint,
+    build_set_vacation_mode,
     build_set_heating_curve,
     build_set_hbh,
     build_set_dhw_storage,
@@ -494,6 +496,31 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         """Set DHW (hot water) target temperature. Write index 54."""
         await self._send_write(build_set_dhw_setpoint(self._mn, setpoint_celsius),
                                f"DHW setpoint → {setpoint_celsius:.1f}°C")
+
+    async def async_set_heating_setpoint(self, setpoint_celsius: float) -> None:
+        """
+        Set heating water circuit setpoint. Write index 37, confirmed MITM.
+
+        Only takes effect when the heating curve is OFF — the pump's own
+        portal labels idx 37 (par38) "Set temp. for Heating (without heating
+        curve)". When switch.heating_curve is on, the pump computes its own
+        target from Curve_Amb_*/Curve_Water_* and this value is ignored.
+        The number entity (number.py) reflects this via its `available`
+        property so a write here while the curve is on is visibly a no-op,
+        not a silent one.
+        """
+        await self._send_write(build_set_setpoint(self._mn, setpoint_celsius),
+                               f"Heating setpoint → {setpoint_celsius:.1f}°C")
+
+    async def async_set_vacation_mode(self, on: bool) -> None:
+        """
+        Enable/disable Vacation Mode. Write index 44 — NOT MITM-confirmed,
+        inferred from the read/write-same-idx convention used everywhere
+        else in this file. First real write should be followed by a
+        diagnostics dump read-back to confirm slot 44 actually changed.
+        """
+        await self._send_write(build_set_vacation_mode(self._mn, on),
+                               f"Vacation mode → {'ON' if on else 'OFF'}")
 
     async def async_set_heating_curve(self, on: bool) -> None:
         """Enable/disable heating curve. Write index 23: 1.0=on, 0.0=off."""

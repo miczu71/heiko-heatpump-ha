@@ -59,6 +59,14 @@ def _register_services(hass: HomeAssistant) -> None:
         for coord in _all_coordinators(hass):
             await coord.async_set_dhw_setpoint(call.data["temperature"])
 
+    async def set_heating_setpoint(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_heating_setpoint(call.data["temperature"])
+
+    async def set_vacation_mode(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_vacation_mode(call.data["enabled"])
+
     async def set_mode(call: ServiceCall) -> None:
         mode = call.data["mode"]
         if isinstance(mode, str):
@@ -131,6 +139,16 @@ def _register_services(hass: HomeAssistant) -> None:
         schema=vol.Schema({
             vol.Required("temperature"): vol.All(vol.Coerce(float), vol.Range(min=40, max=60)),
         }),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_heating_setpoint", set_heating_setpoint,
+        schema=vol.Schema({
+            vol.Required("temperature"): vol.All(vol.Coerce(float), vol.Range(min=15, max=55)),
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_vacation_mode", set_vacation_mode,
+        schema=vol.Schema({vol.Required("enabled"): cv.boolean}),
     )
     hass.services.async_register(
         DOMAIN, "set_mode", set_mode,
@@ -306,7 +324,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.async_stop()
         if not hass.data[DOMAIN]:
             for svc in (
-                "set_dhw_setpoint", "set_mode", "set_power",
+                "set_dhw_setpoint", "set_heating_setpoint", "set_vacation_mode",
+                "set_mode", "set_power",
                 "set_heating_curve", "set_hbh", "set_dhw_storage",
                 "set_curve_parallel", "set_heating_stops_delta",
                 "set_heating_restarts_delta", "set_dhw_restart_delta",

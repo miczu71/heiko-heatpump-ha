@@ -13,6 +13,36 @@ set_dhw_setpoint:
           step: 1
           unit_of_measurement: "°C"
 
+set_heating_setpoint:
+  name: Set Heating Setpoint
+  description: >-
+    Set the heating water circuit target temperature. Only takes effect
+    when the heating curve is off — the pump computes its own target
+    from the curve when it's on, and ignores this value.
+  fields:
+    temperature:
+      name: Temperature
+      description: Target temperature in °C (15–55).
+      required: true
+      selector:
+        number:
+          min: 15
+          max: 55
+          step: 1
+          unit_of_measurement: "°C"
+
+set_vacation_mode:
+  name: Set Vacation Mode
+  description: >-
+    Enable or disable Vacation Mode. Write index not MITM-confirmed —
+    verify the change took effect via the diagnostics dump after first use.
+  fields:
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean:
+
 set_mode:
   name: Set Working Mode
   description: Set the heat pump working mode.

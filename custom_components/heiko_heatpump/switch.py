@@ -67,6 +67,16 @@ _SWITCH_DESCS: list[HeikoSwitchEntityDescription] = [
         read_key="Anti_Leg_Program",
         write=lambda coord, v: coord.async_set_anti_leg_program(v),
     ),
+    # Etap 5 (2026-09-17): idx 44/par45, named+confirmed via portal in Etap 3.
+    # Write index NOT MITM-confirmed (see WRITE_IDX_VACATION_MODE in
+    # protocol.py) — verify with a diagnostics read-back after first use.
+    HeikoSwitchEntityDescription(
+        key="vacation_mode_switch",
+        name="Vacation Mode",
+        icon="mdi:bag-suitcase",
+        read_key="Vacation_Mode",
+        write=lambda coord, v: coord.async_set_vacation_mode(v),
+    ),
 ]
 
 

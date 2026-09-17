@@ -33,15 +33,14 @@ class HeikoBinarySensorEntityDescription(BinarySensorEntityDescription):
 # ── Etap 4 (2026-09-17): named via portal, cross-validated against a live
 # diagnostics dump (74 pairs, 0 mismatches) — docs/heiko_register_map.md in
 # homeassistant-config. Read-only completeness pass. Two enabled by default
-# (Vacation Mode, Circuit 2 Active — cheap, useful state signals); the rest
-# start disabled, enable individually if wanted. No write support added for
-# any of these (Etap 5).
+# (Circuit 2 Active — cheap, useful state signal); the rest start disabled,
+# enable individually if wanted.
+#
+# Vacation Mode does NOT have an entry here even though it was named in the
+# same batch: Etap 5 added switch.vacation_mode_switch (write + read-back),
+# which fully supersedes a read-only duplicate — same pattern as
+# HeatingCurve_State (circuit 1), which is switch-only too.
 BINARY_SENSOR_DESCRIPTIONS: tuple[HeikoBinarySensorEntityDescription, ...] = (
-    HeikoBinarySensorEntityDescription(
-        key="Vacation_Mode",
-        name="Vacation Mode Active",
-        device_class=BinarySensorDeviceClass.RUNNING,
-    ),
     HeikoBinarySensorEntityDescription(
         key="Circuit2_Enabled",
         name="Heating Circuit 2 Active",

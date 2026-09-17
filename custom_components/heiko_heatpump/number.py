@@ -36,11 +36,35 @@ class HeikoNumberEntityDescription:
     unit: str
     read_key: str | None
     write: Callable[[HeikoCoordinator, float], Awaitable[None]]
+    # Optional extra guard beyond "coordinator has data" — e.g. the heating
+    # setpoint is only meaningful when the heating curve is off (the pump
+    # ignores it otherwise). None means always available.
+    available_when: Callable[[HeikoCoordinator], bool] | None = None
 
 
 
 
 _BASE_DESCS: list[HeikoNumberEntityDescription] = [
+    # Etap 5 (2026-09-17): the one real control gap from the original design —
+    # protocol.py had build_set_setpoint()/WRITE_IDX_HEATING="confirmed MITM"
+    # since before Etap 1, but coordinator.py never wired it to anything.
+    # Only meaningful when the heating curve is off: the portal labels idx 37
+    # (par38) "Set temp. for Heating (without heating curve)" — confirmed via
+    # Etap 3's register map. available_when guards against writing to a value
+    # the pump silently ignores while the curve is on.
+    HeikoNumberEntityDescription(
+        key="heating_setpoint",
+        name="Heating Setpoint",
+        icon="mdi:radiator",
+        min_value=15.0, max_value=55.0, step=1.0,
+        unit=UnitOfTemperature.CELSIUS,
+        read_key="Setpoint",
+        write=lambda coord, v: coord.async_set_heating_setpoint(v),
+        available_when=lambda coord: (
+            coord.data is not None
+            and round(coord.data.get("HeatingCurve_State", 0)) == 0
+        ),
+    ),
     HeikoNumberEntityDescription(
         key="dhw_setpoint",
         name="DHW Setpoint",
@@ -177,6 +201,14 @@ class HeikoNumberEntity(HeikoBaseEntity, NumberEntity):
         self._attr_native_unit_of_measurement = desc.unit
         self._desc = desc
         self._optimistic: float | None = None
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        if self._desc.available_when is not None:
+            return self._desc.available_when(self.coordinator)
+        return True
 
     @property
     def native_value(self) -> float | None:
