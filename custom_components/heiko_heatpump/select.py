@@ -14,6 +14,8 @@ Modes confirmed:
 
 from __future__ import annotations
 import logging
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
@@ -25,6 +27,9 @@ from .coordinator import HeikoCoordinator
 from .entity import HeikoBaseEntity
 from .protocol import (
     MODE_STANDBY, MODE_HEATING, MODE_COOLING, MODE_DHW, MODE_AUTO,
+    CIRC_PUMP_TYPE_VARIABLE, CIRC_PUMP_TYPE_CONSTANT,
+    CIRC_PUMP_MODE_DEFAULT, CIRC_PUMP_MODE_ALWAYS_ON, CIRC_PUMP_MODE_COMPRESSOR,
+    CIRC_PUMP_SPEED_HIGH, CIRC_PUMP_SPEED_MEDIUM, CIRC_PUMP_SPEED_LOW,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -40,12 +45,85 @@ _OPTIONS: dict[str, int] = {
 _VALUE_TO_LABEL = {v: k for k, v in _OPTIONS.items()}
 
 
+@dataclass(frozen=True)
+class HeikoSelectEntityDescription:
+    key: str
+    name: str
+    icon: str
+    options: dict[str, int]   # human label → protocol value
+    read_key: str
+    write: Callable[[HeikoCoordinator, int], Awaitable[None]]
+
+
+# Circulation pump P0 — Etap 7 (2026-09-23), confirmed by a live panel diff
+# session (installer-level menu, not covered by the portal or the user
+# manual). See docs/heiko_register_map.md (homeassistant-config repo) for
+# the session log and per-value confirmation. Panel labels kept verbatim
+# (Polish) since that's the source of truth a user matches against the
+# physical panel; Circ_Pump_Mode value 0's panel label literally repeats the
+# field's own title — a firmware bug, so it's given a descriptive label here
+# instead of reproducing the broken text.
+_CIRC_PUMP_DESCS: list[HeikoSelectEntityDescription] = [
+    HeikoSelectEntityDescription(
+        key="circ_pump_type",
+        name="Circulation Pump P0 Type",
+        icon="mdi:pump",
+        options={
+            "Pompa sterowana płynnie": CIRC_PUMP_TYPE_VARIABLE,
+            "Stałe obroty pompy": CIRC_PUMP_TYPE_CONSTANT,
+        },
+        read_key="Circ_Pump_Type",
+        write=lambda coord, v: coord.async_set_circ_pump_type(v),
+    ),
+    HeikoSelectEntityDescription(
+        key="circ_pump_mode",
+        name="Circulation Pump P0 Mode",
+        icon="mdi:pump",
+        options={
+            "Domyślny (przerywany)": CIRC_PUMP_MODE_DEFAULT,
+            "Pompa włączona na stałe": CIRC_PUMP_MODE_ALWAYS_ON,
+            "Praca pompy ze sprężarką": CIRC_PUMP_MODE_COMPRESSOR,
+        },
+        read_key="Circ_Pump_Mode",
+        write=lambda coord, v: coord.async_set_circ_pump_mode(v),
+    ),
+    HeikoSelectEntityDescription(
+        key="circ_pump_speed_heating",
+        name="Circulation Pump P0 Speed (Heating)",
+        icon="mdi:speedometer",
+        options={
+            "Wysokie obroty": CIRC_PUMP_SPEED_HIGH,
+            "Średnie obroty": CIRC_PUMP_SPEED_MEDIUM,
+            "Niskie obroty": CIRC_PUMP_SPEED_LOW,
+        },
+        read_key="Circ_Pump_Speed_Heating",
+        write=lambda coord, v: coord.async_set_circ_pump_speed_heating(v),
+    ),
+    HeikoSelectEntityDescription(
+        key="circ_pump_speed_dhw",
+        name="Circulation Pump P0 Speed (DHW)",
+        icon="mdi:speedometer",
+        options={
+            "Wysokie obroty": CIRC_PUMP_SPEED_HIGH,
+            "Średnie obroty": CIRC_PUMP_SPEED_MEDIUM,
+            "Niskie obroty": CIRC_PUMP_SPEED_LOW,
+        },
+        read_key="Circ_Pump_Speed_DHW",
+        write=lambda coord, v: coord.async_set_circ_pump_speed_dhw(v),
+    ),
+]
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: HeikoCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([HeikoModeSelectEntity(coordinator, entry.data["mn"])])
+    mn_str = entry.data["mn"]
+    async_add_entities([
+        HeikoModeSelectEntity(coordinator, mn_str),
+        *(HeikoSelectEntity(coordinator, mn_str, desc) for desc in _CIRC_PUMP_DESCS),
+    ])
 
 
 class HeikoModeSelectEntity(HeikoBaseEntity, SelectEntity):
@@ -103,5 +181,57 @@ class HeikoModeSelectEntity(HeikoBaseEntity, SelectEntity):
         # Clear optimistic only once the live WorkingMode value is populated.
         # This avoids a brief flicker if the pump takes a cycle to confirm.
         if self.coordinator.data and self.coordinator.data.get("Mode_Setdata") is not None:
+            self._optimistic = None
+        self.async_write_ha_state()
+
+
+class HeikoSelectEntity(HeikoBaseEntity, SelectEntity):
+    """A generic dropdown select entity that reads from and writes to the
+    heat pump, driven by a HeikoSelectEntityDescription. Used for the
+    circulation pump P0 controls (Etap 7) — see _CIRC_PUMP_DESCS above."""
+
+    def __init__(
+        self,
+        coordinator: HeikoCoordinator,
+        mn_str: str,
+        desc: HeikoSelectEntityDescription,
+    ) -> None:
+        super().__init__(coordinator, mn_str, desc.key)
+        self._attr_name = desc.name
+        self._attr_icon = desc.icon
+        self._attr_options = list(desc.options.keys())
+        self._desc = desc
+        self._value_to_label = {v: k for k, v in desc.options.items()}
+        self._optimistic: str | None = None
+
+    @property
+    def current_option(self) -> str | None:
+        if self._optimistic is not None:
+            return self._optimistic
+        if not self.coordinator.data:
+            return None
+        raw = self.coordinator.data.get(self._desc.read_key)
+        if raw is None:
+            return None
+        return self._value_to_label.get(int(round(raw)))
+
+    async def async_select_option(self, option: str) -> None:
+        value = self._desc.options.get(option)
+        if value is None:
+            _LOGGER.error("Unknown option for %s: %s", self._attr_name, option)
+            return
+
+        self._optimistic = option
+        self.async_write_ha_state()
+        try:
+            await self._desc.write(self.coordinator, value)
+        except Exception:
+            _LOGGER.exception("Failed to set %s to %s", self._attr_name, option)
+            self._optimistic = None
+            self.async_write_ha_state()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        if self.coordinator.data and self.coordinator.data.get(self._desc.read_key) is not None:
             self._optimistic = None
         self.async_write_ha_state()

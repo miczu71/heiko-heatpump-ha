@@ -169,6 +169,33 @@ _CURVE_DESCS: list[HeikoNumberEntityDescription] = [
 ]
 
 
+# Circulation pump P0 interval timing — Etap 7 (2026-09-23), confirmed by a
+# live panel diff session (installer-level menu, not covered by the portal
+# or the user manual). See docs/heiko_register_map.md (homeassistant-config
+# repo) for the session log. Baseline observed on this installation: 1 min
+# run / 6 min stop; both confirmed writable (1→2, 6→7) and reverted.
+_CIRC_PUMP_DESCS: list[HeikoNumberEntityDescription] = [
+    HeikoNumberEntityDescription(
+        key="circ_pump_run_time",
+        name="Circulation Pump P0 Run Time",
+        icon="mdi:timer-play",
+        min_value=1.0, max_value=30.0, step=1.0,
+        unit=UnitOfTime.MINUTES,
+        read_key="Circ_Pump_Run_Time",
+        write=lambda coord, v: coord.async_set_circ_pump_run_time(v),
+    ),
+    HeikoNumberEntityDescription(
+        key="circ_pump_stop_time",
+        name="Circulation Pump P0 Stop Time",
+        icon="mdi:timer-pause",
+        min_value=1.0, max_value=60.0, step=1.0,
+        unit=UnitOfTime.MINUTES,
+        read_key="Circ_Pump_Stop_Time",
+        write=lambda coord, v: coord.async_set_circ_pump_stop_time(v),
+    ),
+]
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
@@ -177,7 +204,7 @@ async def async_setup_entry(
     mn_str = entry.data["mn"]
     async_add_entities([
         HeikoNumberEntity(coordinator, mn_str, desc)
-        for desc in _BASE_DESCS + _CURVE_DESCS
+        for desc in _BASE_DESCS + _CURVE_DESCS + _CIRC_PUMP_DESCS
     ])
 
 

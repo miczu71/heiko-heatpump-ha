@@ -47,6 +47,12 @@ from .protocol import (
     build_set_anti_leg_setpoint,
     build_set_anti_leg_duration,
     build_set_anti_leg_finish,
+    build_set_circ_pump_type,
+    build_set_circ_pump_mode,
+    build_set_circ_pump_stop_time,
+    build_set_circ_pump_run_time,
+    build_set_circ_pump_speed_heating,
+    build_set_circ_pump_speed_dhw,
     extract_all_params,
     extract_all_floats,
 )
@@ -147,6 +153,18 @@ _SETDATA_MAP: list[tuple[int, str, float | None, int | None]] = [
     (11,  "Ambient_Temp_Start_Cooling",  None, 1),
     (85,  "Panel_Backlight",             None, None),
     (121, "Curve2_Parallel_Move",        None, 1),
+
+    # ── Etap 7 (2026-09-23): circulation pump P0, named via a live panel diff
+    # session — installer-level menu not covered by the portal or the user
+    # manual. See docs/heiko_register_map.md (homeassistant-config repo) for
+    # the full session log. All 6 confirmed by isolated single-field panel
+    # changes; idx 88 additionally by a full 0→2→1→0 cycle.
+    (86,  "Circ_Pump_Type",              None, None),
+    (88,  "Circ_Pump_Mode",              None, None),
+    (89,  "Circ_Pump_Stop_Time",         0.0,  1),
+    (90,  "Circ_Pump_Run_Time",          0.0,  1),
+    (130, "Circ_Pump_Speed_Heating",     None, None),
+    (132, "Circ_Pump_Speed_DHW",         None, None),
 ]
 # Derived frozenset of keys that _handle_setdata writes — used to preserve them across
 # realtime frames without manually maintaining a second list.
@@ -588,6 +606,41 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         """Set Anti-Legionella finish time. Write index 43."""
         await self._send_write(build_set_anti_leg_finish(self._mn, value),
                                f"Anti-Legionella finish time → {value:.0f} min")
+
+    async def async_set_circ_pump_type(self, value: int) -> None:
+        """Set circulation pump P0 type. Write index 86. Confirmed panel 2026-09-23.
+        0=variable (PWM-controlled), 1=constant speed."""
+        await self._send_write(build_set_circ_pump_type(self._mn, value),
+                               f"Circ pump P0 type → {value}")
+
+    async def async_set_circ_pump_mode(self, value: int) -> None:
+        """Set circulation pump P0 operating mode. Write index 88. Confirmed
+        panel 2026-09-23, full cycle through all 3 values.
+        0=default/interval, 1=always on, 2=compressor-linked."""
+        await self._send_write(build_set_circ_pump_mode(self._mn, value),
+                               f"Circ pump P0 mode → {value}")
+
+    async def async_set_circ_pump_stop_time(self, value: float) -> None:
+        """Set circulation pump P0 interval-mode stop time, minutes. Write index 89."""
+        await self._send_write(build_set_circ_pump_stop_time(self._mn, value),
+                               f"Circ pump P0 stop time → {value:.0f} min")
+
+    async def async_set_circ_pump_run_time(self, value: float) -> None:
+        """Set circulation pump P0 interval-mode run time, minutes. Write index 90."""
+        await self._send_write(build_set_circ_pump_run_time(self._mn, value),
+                               f"Circ pump P0 run time → {value:.0f} min")
+
+    async def async_set_circ_pump_speed_heating(self, value: int) -> None:
+        """Set circulation pump P0 speed in heating mode. Write index 130.
+        0=high, 1=medium, 2=low."""
+        await self._send_write(build_set_circ_pump_speed_heating(self._mn, value),
+                               f"Circ pump P0 speed (heating) → {value}")
+
+    async def async_set_circ_pump_speed_dhw(self, value: int) -> None:
+        """Set circulation pump P0 speed in DHW mode. Write index 132.
+        0=high, 1=medium, 2=low."""
+        await self._send_write(build_set_circ_pump_speed_dhw(self._mn, value),
+                               f"Circ pump P0 speed (DHW) → {value}")
 
     async def _send_write(self, frame_bytes: bytes, description: str) -> None:
         """Send a CMD 0x05 write frame and log it."""

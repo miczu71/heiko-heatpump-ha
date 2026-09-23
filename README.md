@@ -15,9 +15,9 @@ Frame format and all write indices were confirmed by MITM-capturing live cloud�
 
 - **Water heater entity** — DHW setpoint control (40–60 °C, step 1 °C), current water temperature, operation mode
 - **5 switch entities** — Heat Pump Power, Heating Curve, Backup Heater (HBH), DHW Storage, Anti-Legionella Program
-- **Working Mode select** — direct mode control (Standby / Heating / Cooling / DHW / Auto)
+- **5 select entities** — Working Mode (Standby / Heating / Cooling / DHW / Auto), plus circulation pump P0 type, operating mode (incl. "always on"), and speed in heating/DHW modes
 - **30+ sensor entities** — temperatures, pressures, compressor frequency, electrical, COP estimates, working-time counters
-- **17 number entities** — heating curve parallel shift, hysteresis ΔT settings, all 10 curve breakpoints, Anti-Legionella setpoint/duration/finish time; all read live from the pump (CMD 0x02 setdata)
+- **19 number entities** — heating curve parallel shift, hysteresis ΔT settings, all 10 curve breakpoints, Anti-Legionella setpoint/duration/finish time, circulation pump P0 run/stop time; all read live from the pump (CMD 0x02 setdata)
 - **2 binary sensors** — Connection (TCP link state) and Anti-Legionella Running (cycle active indicator)
 - **16 HA services** — control the pump from automations (mode, power, DHW, heating curve, ΔT thresholds, curve breakpoints, Anti-Legionella settings)
 - **Repairs alert** — raises an issue in Settings → Repairs if the pump stops sending data for 5+ minutes, with troubleshooting steps; clears automatically on recovery
@@ -93,6 +93,18 @@ No changes to SocketB are needed for local-only use.
 | DHW Storage | DHW storage mode on/off |
 | Anti-Legionella Program | Enable/disable the legionella protection cycle |
 
+### Selects
+
+| Entity | Write index | Options | Description |
+|--------|-------------|---------|-------------|
+| Working Mode | 3 | Standby / Heating / Cooling / DHW / Auto | Direct mode control |
+| Circulation Pump P0 Type | 86 | Pompa sterowana płynnie / Stałe obroty pompy | Variable (PWM) vs. constant-speed control of the internal circulation pump |
+| Circulation Pump P0 Mode | 88 | Domyślny (przerywany) / Pompa włączona na stałe / Praca pompy ze sprężarką | Interval vs. always-on vs. compressor-linked operation |
+| Circulation Pump P0 Speed (Heating) | 130 | Wysokie / Średnie / Niskie obroty | Pump speed while in heating mode |
+| Circulation Pump P0 Speed (DHW) | 132 | Wysokie / Średnie / Niskie obroty | Pump speed while in DHW mode |
+
+> Circulation pump P0 entities live on an installer-level panel menu not covered by the vendor portal or the user manual — confirmed by a live panel diff session (2026-09-23), see `docs/heiko_register_map.md` in the `homeassistant-config` repo for the method and full session log. Panel option labels are kept verbatim (Polish) so they match what you see on the physical display; the "Domyślny" label for Mode value 0 is a paraphrase — the pump's own panel repeats the field's title there, a firmware bug.
+
 ### Sensors (selection)
 | Key | Description |
 |-----|-------------|
@@ -126,6 +138,8 @@ All values are read live from the pump's CMD 0x02 setdata frames. Entities show 
 | Anti-Legionella Setpoint | 41 | 40–70 °C | Temperature the water must reach during the legionella cycle |
 | Anti-Legionella Duration | 42 | 1–120 min | How long the pump holds the setpoint |
 | Anti-Legionella Finish Time | 43 | 1–240 min | Cycle finish/timeout time |
+| Circulation Pump P0 Run Time | 90 | 1–30 min | Interval-mode run time (installation baseline: 1 min) |
+| Circulation Pump P0 Stop Time | 89 | 1–60 min | Interval-mode stop time (installation baseline: 6 min) |
 
 ### Services
 
