@@ -634,6 +634,70 @@ def build_set_anti_leg_finish(mn: bytes, minutes: float, **kwargs) -> bytes:
     return build_write_param(mn, WRITE_IDX_ANTI_LEG_FINISH, float(minutes), **kwargs)
 
 
+# Circulation pump P0 (obiegowa) — confirmed 2026-09-23 by a live panel diff
+# session (isolated single-field changes on the physical panel, watched on
+# the wire via tools/sniff_heatpump.py in the homeassistant-config repo).
+# These fields live on an installer-level panel menu not covered by any
+# portal export or the official user manual — see
+# docs/heiko_register_map.md there for the full session log and method.
+WRITE_IDX_CIRC_PUMP_TYPE          = 86   # confirmed panel 0→1→0
+WRITE_IDX_CIRC_PUMP_MODE          = 88   # confirmed panel, full cycle 0→2→1→0
+WRITE_IDX_CIRC_PUMP_STOP_TIME     = 89   # minutes, confirmed panel 6→7→6
+WRITE_IDX_CIRC_PUMP_RUN_TIME      = 90   # minutes, confirmed panel 1→2→1
+WRITE_IDX_CIRC_PUMP_SPEED_HEATING = 130  # confirmed panel 1→0→1
+WRITE_IDX_CIRC_PUMP_SPEED_DHW     = 132  # confirmed panel 0→1→0
+
+CIRC_PUMP_TYPE_VARIABLE   = 0   # Pompa sterowana płynnie
+CIRC_PUMP_TYPE_CONSTANT   = 1   # Stałe obroty pompy
+
+# Panel label for value 0 literally repeats the field's own title — a
+# firmware localisation bug, not a display/parsing issue on our side.
+CIRC_PUMP_MODE_DEFAULT    = 0   # domyślny / tryb przerywany
+CIRC_PUMP_MODE_ALWAYS_ON  = 1   # Pompa włączona na stałe — the original goal of this feature
+CIRC_PUMP_MODE_COMPRESSOR = 2   # Praca pompy ze sprężarką
+
+CIRC_PUMP_SPEED_HIGH   = 0   # Wysokie obroty
+CIRC_PUMP_SPEED_MEDIUM = 1   # Średnie obroty
+CIRC_PUMP_SPEED_LOW    = 2   # Niskie obroty — pattern from on-screen order, not individually confirmed
+
+
+def build_set_circ_pump_type(mn: bytes, value: int, **kwargs) -> bytes:
+    """Set circulation pump P0 type. Write index 86. Confirmed panel 2026-09-23.
+    Use CIRC_PUMP_TYPE_* constants: 0=variable (PWM-controlled), 1=constant speed."""
+    return build_write_param(mn, WRITE_IDX_CIRC_PUMP_TYPE, float(value), **kwargs)
+
+
+def build_set_circ_pump_mode(mn: bytes, value: int, **kwargs) -> bytes:
+    """Set circulation pump P0 operating mode. Write index 88. Confirmed panel
+    2026-09-23, full cycle through all 3 values. Use CIRC_PUMP_MODE_* constants:
+    0=default/interval, 1=always on, 2=compressor-linked."""
+    return build_write_param(mn, WRITE_IDX_CIRC_PUMP_MODE, float(value), **kwargs)
+
+
+def build_set_circ_pump_stop_time(mn: bytes, minutes: float, **kwargs) -> bytes:
+    """Circulation pump P0 interval-mode stop time, minutes. Write index 89.
+    Confirmed panel 2026-09-23."""
+    return build_write_param(mn, WRITE_IDX_CIRC_PUMP_STOP_TIME, float(minutes), **kwargs)
+
+
+def build_set_circ_pump_run_time(mn: bytes, minutes: float, **kwargs) -> bytes:
+    """Circulation pump P0 interval-mode run time, minutes. Write index 90.
+    Confirmed panel 2026-09-23."""
+    return build_write_param(mn, WRITE_IDX_CIRC_PUMP_RUN_TIME, float(minutes), **kwargs)
+
+
+def build_set_circ_pump_speed_heating(mn: bytes, value: int, **kwargs) -> bytes:
+    """Circulation pump P0 speed in heating mode. Write index 130. Confirmed
+    panel 2026-09-23. Use CIRC_PUMP_SPEED_* constants."""
+    return build_write_param(mn, WRITE_IDX_CIRC_PUMP_SPEED_HEATING, float(value), **kwargs)
+
+
+def build_set_circ_pump_speed_dhw(mn: bytes, value: int, **kwargs) -> bytes:
+    """Circulation pump P0 speed in DHW mode. Write index 132. Confirmed panel
+    2026-09-23. Use CIRC_PUMP_SPEED_* constants."""
+    return build_write_param(mn, WRITE_IDX_CIRC_PUMP_SPEED_DHW, float(value), **kwargs)
+
+
 # ── Frame stream parser ────────────────────────────────────────────────────────
 class FrameBuffer:
     """
