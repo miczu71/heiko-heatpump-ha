@@ -710,8 +710,11 @@ def build_set_circ_pump_speed_dhw(mn: bytes, value: int, **kwargs) -> bytes:
 # Slot → panel row confirmed 2026-09-26 by isolated single-field changes on
 # the physical panel (each produced exactly one changed slot in the setdata
 # frame): 47/48/49/51/52 in the afternoon, 77/78 in the morning. Write index ==
-# setdata index (same rule as vacation 44, DHW 54, P0 86–90). WRITES to these
-# slots are not yet confirmed by a live write from HA — see CHANGELOG 1.13.0.
+# setdata index (same rule as vacation 44, DHW 54, P0 86–90). WRITES CONFIRMED
+# 2026-09-26 (16:31–16:35) by real writes from HA on v1.13.0, each read back
+# from the pump's own setdata frame and reverted: 78 2→3→2, 77 0→1→0, 47 0→1→0,
+# 48 0→1→0, 49 1→0→1, 50 1→0→1 (via the select), 51 100→110→100, 52 20→22→20;
+# exactly one slot changed per write, final frame identical to the baseline.
 WRITE_IDX_BACKUP_HEATING          = 47   # ☐ additional source when heating (HBH present): 0/1
 WRITE_IDX_BACKUP_PRIORITY_HEATING = 48   # priority of HBH vs AH when heating: 0=lower, 1=higher
 WRITE_IDX_BACKUP_DHW              = 49   # ☐ additional source when heating DHW (HWTBH present): 0/1

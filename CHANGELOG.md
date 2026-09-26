@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.13.0] - 2026-09-26
 
-Panel-confirmed control of the reduced setpoint and of the additional heat sources ("Dodatkowe źródła ciepła"). Slot → panel-row mapping was confirmed on 2026-09-26 by isolated single-field changes on the physical panel (each change moved exactly one slot in the setdata frame). Writes use the same `write index == setdata index` rule as every other confirmed slot; the live write + read-back from HA is verified separately after release.
+Panel-confirmed control of the reduced setpoint and of the additional heat sources ("Dodatkowe źródła ciepła"). Slot → panel-row mapping was confirmed on 2026-09-26 by isolated single-field changes on the physical panel (each change moved exactly one slot in the setdata frame). Writes use the same `write index == setdata index` rule as every other confirmed slot, and were **verified live from HA the same day** (16:31–16:35, right after the release): every write was read back from the pump's own setdata frame and reverted — 78 2→3→2, 77 0→1→0, 47 0→1→0, 48 0→1→0, 49 1→0→1, 50 1→0→1 (via the select; the legacy switch followed correctly), 51 100→110→100, 52 20→22→20. Exactly one slot changed per write and the final frame was identical to the baseline.
 
 ### Added
 - **Switches:** Backup Source For Heating (slot 47), Backup Source For DHW (49), Reduced Setpoint (77)
