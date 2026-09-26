@@ -196,6 +196,42 @@ _CIRC_PUMP_DESCS: list[HeikoNumberEntityDescription] = [
 ]
 
 
+# Backup heat sources + reduced setpoint — slot → panel row confirmed
+# 2026-09-26 by isolated panel changes (docs/heiko_register_map.md in the
+# homeassistant-config repo). Ranges are deliberately conservative where the
+# panel range is not known: 78 (panel minimum 2 confirmed, maximum unknown),
+# 52 (minutes). Slot 51 range 0–600 was read off the panel.
+_BACKUP_DESCS: list[HeikoNumberEntityDescription] = [
+    HeikoNumberEntityDescription(
+        key="reduced_setpoint_drop",
+        name="Reduced Setpoint Drop/Rise",
+        icon="mdi:thermometer-minus",
+        min_value=2.0, max_value=10.0, step=1.0,
+        unit=UnitOfTemperature.CELSIUS,
+        read_key="Reduced_Setpoint_Drop",
+        write=lambda coord, v: coord.async_set_reduced_drop(v),
+    ),
+    HeikoNumberEntityDescription(
+        key="backup_accum_value",
+        name="Backup Source Start Dependency",
+        icon="mdi:timer-cog",
+        min_value=0.0, max_value=600.0, step=1.0,
+        unit="",
+        read_key="Backup_HBH_Accum_Value",
+        write=lambda coord, v: coord.async_set_backup_accum(v),
+    ),
+    HeikoNumberEntityDescription(
+        key="backup_start_delay",
+        name="Backup Source Start Delay",
+        icon="mdi:timer-sand",
+        min_value=1.0, max_value=120.0, step=1.0,
+        unit=UnitOfTime.MINUTES,
+        read_key="Backup_HWTBH_Temp_Rise_Interval",
+        write=lambda coord, v: coord.async_set_backup_start_delay(v),
+    ),
+]
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
@@ -204,7 +240,7 @@ async def async_setup_entry(
     mn_str = entry.data["mn"]
     async_add_entities([
         HeikoNumberEntity(coordinator, mn_str, desc)
-        for desc in _BASE_DESCS + _CURVE_DESCS + _CIRC_PUMP_DESCS
+        for desc in _BASE_DESCS + _CURVE_DESCS + _CIRC_PUMP_DESCS + _BACKUP_DESCS
     ])
 
 

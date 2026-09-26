@@ -17,7 +17,22 @@ import sys
 import os
 
 # Allow running without a full HA installation
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+_ROOT = os.path.join(os.path.dirname(__file__), "..")
+sys.path.insert(0, _ROOT)
+
+# protocol.py is pure Python, but importing it through the package would run
+# custom_components/heiko_heatpump/__init__.py (needs Home Assistant). Register
+# the package names as bare namespace stubs so only protocol.py is loaded.
+import types  # noqa: E402
+
+for _name, _path in (
+    ("custom_components", os.path.join(_ROOT, "custom_components")),
+    ("custom_components.heiko_heatpump", os.path.join(_ROOT, "custom_components", "heiko_heatpump")),
+):
+    if _name not in sys.modules:
+        _pkg = types.ModuleType(_name)
+        _pkg.__path__ = [_path]
+        sys.modules[_name] = _pkg
 
 from custom_components.heiko_heatpump.protocol import (
     FrameBuffer,
@@ -25,6 +40,17 @@ from custom_components.heiko_heatpump.protocol import (
     build_request_realtime,
     build_set_power,
     build_set_setpoint,
+    build_set_hbh,
+    build_set_backup_heating,
+    build_set_backup_priority_heating,
+    build_set_backup_dhw,
+    build_set_backup_priority_dhw,
+    build_set_backup_accum,
+    build_set_backup_start_delay,
+    build_set_reduced_setpoint,
+    build_set_reduced_drop,
+    BACKUP_PRIORITY_LOWER,
+    BACKUP_PRIORITY_HIGHER,
     build_write_param,
     crc16_modbus,
     extract_all_params,
@@ -246,6 +272,45 @@ class TestBuildFrames:
         assert frame.crc_ok is True
 
 
+# ── Backup heat sources + reduced setpoint (1.13.0, slots confirmed on the panel 2026-09-26) ──
+
+class TestBackupAndReducedWrites:
+    """Write index == setdata index; each builder must embed the right slot
+    and float and produce a CRC-valid CMD 0x05 frame."""
+
+    def _decode(self, raw: bytes) -> tuple[int, float]:
+        frame = parse_frame(raw)
+        assert frame is not None and frame.command == CMD_WRITE and frame.crc_ok is True
+        return (struct.unpack_from('<H', raw, 13)[0], struct.unpack_from('<f', raw, 15)[0])
+
+    def test_boolean_slots(self):
+        cases = [
+            (build_set_backup_heating, 47),
+            (build_set_backup_dhw, 49),
+            (build_set_reduced_setpoint, 77),
+        ]
+        for builder, idx in cases:
+            assert self._decode(builder(TEST_MN, True)) == (idx, 1.0), builder.__name__
+            assert self._decode(builder(TEST_MN, False)) == (idx, 0.0), builder.__name__
+
+    def test_priority_slots_write_enum_directly(self):
+        assert self._decode(build_set_backup_priority_heating(TEST_MN, BACKUP_PRIORITY_LOWER)) == (48, 0.0)
+        assert self._decode(build_set_backup_priority_heating(TEST_MN, BACKUP_PRIORITY_HIGHER)) == (48, 1.0)
+        assert self._decode(build_set_backup_priority_dhw(TEST_MN, BACKUP_PRIORITY_LOWER)) == (50, 0.0)
+        assert self._decode(build_set_backup_priority_dhw(TEST_MN, BACKUP_PRIORITY_HIGHER)) == (50, 1.0)
+
+    def test_legacy_hbh_alias_is_inverted_slot_50(self):
+        """build_set_hbh(on=True) must keep writing 0.0 to slot 50 (existing
+        automations rely on it) = 'lower than AH' in the new select."""
+        assert self._decode(build_set_hbh(TEST_MN, True)) == (50, float(BACKUP_PRIORITY_LOWER))
+        assert self._decode(build_set_hbh(TEST_MN, False)) == (50, float(BACKUP_PRIORITY_HIGHER))
+
+    def test_numeric_slots(self):
+        assert self._decode(build_set_backup_accum(TEST_MN, 110)) == (51, 110.0)
+        assert self._decode(build_set_backup_start_delay(TEST_MN, 22)) == (52, 22.0)
+        assert self._decode(build_set_reduced_drop(TEST_MN, 3)) == (78, 3.0)
+
+
 # ── parse_frame ────────────────────────────────────────────────────────────────
 
 class TestParseFrame:
@@ -341,6 +406,7 @@ if __name__ == "__main__":
         TestExtractAllParams,
         TestCRC,
         TestBuildFrames,
+        TestBackupAndReducedWrites,
         TestParseFrame,
         TestFrameBuffer,
     ]

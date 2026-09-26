@@ -36,6 +36,10 @@ class HeikoBinarySensorEntityDescription(BinarySensorEntityDescription):
 # (Circuit 2 Active — cheap, useful state signal); the rest start disabled,
 # enable individually if wanted.
 #
+# Since 1.13.0 the backup-source and reduced-setpoint slots (47, 48, 49, 77) have
+# no read-only entry here either: they are switches/selects now (write +
+# read-back).
+#
 # Vacation Mode does NOT have an entry here even though it was named in the
 # same batch: Etap 5 added switch.vacation_mode_switch (write + read-back),
 # which fully supersedes a read-only duplicate — same pattern as
@@ -52,22 +56,6 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[HeikoBinarySensorEntityDescription, ...] = (
         entity_registry_enabled_default=False,
     ),
     HeikoBinarySensorEntityDescription(
-        key="Backup_Heating_For_Heating",
-        name="Backup Heating Sources For Heating",
-        entity_registry_enabled_default=False,
-    ),
-    HeikoBinarySensorEntityDescription(
-        # Portal enum "Lower than AH"(0) / "Higher than AH"(1).
-        key="Backup_Priority_HBH",
-        name="Backup Heater HBH Priority Higher Than AH",
-        entity_registry_enabled_default=False,
-    ),
-    HeikoBinarySensorEntityDescription(
-        key="Backup_Source_DHW",
-        name="Backup Heating Source For DHW",
-        entity_registry_enabled_default=False,
-    ),
-    HeikoBinarySensorEntityDescription(
         key="Shifting_Priority",
         name="Shifting Priority",
         entity_registry_enabled_default=False,
@@ -80,11 +68,6 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[HeikoBinarySensorEntityDescription, ...] = (
     HeikoBinarySensorEntityDescription(
         key="Reheating_Function",
         name="Reheating Function",
-        entity_registry_enabled_default=False,
-    ),
-    HeikoBinarySensorEntityDescription(
-        key="Reduced_Setpoint",
-        name="Reduced Setpoint",
         entity_registry_enabled_default=False,
     ),
     HeikoBinarySensorEntityDescription(

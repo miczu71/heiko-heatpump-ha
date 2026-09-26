@@ -30,6 +30,7 @@ from .protocol import (
     CIRC_PUMP_TYPE_VARIABLE, CIRC_PUMP_TYPE_CONSTANT,
     CIRC_PUMP_MODE_DEFAULT, CIRC_PUMP_MODE_ALWAYS_ON, CIRC_PUMP_MODE_COMPRESSOR,
     CIRC_PUMP_SPEED_HIGH, CIRC_PUMP_SPEED_MEDIUM, CIRC_PUMP_SPEED_LOW,
+    BACKUP_PRIORITY_LOWER, BACKUP_PRIORITY_HIGHER,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -114,6 +115,34 @@ _CIRC_PUMP_DESCS: list[HeikoSelectEntityDescription] = [
 ]
 
 
+# Priorities of the additional heat source vs the internal heater AH — panel
+# menu "Dodatkowe źródła ciepła" rows 2 and 4, confirmed 2026-09-26 by isolated
+# panel changes (slot 48 and slot 50, both 0=lower / 1=higher, two options only).
+# Labels are the panel's own wording.
+_BACKUP_PRIORITY_OPTIONS: dict[str, int] = {
+    "Niższe dla grzałki wewnętrznej AH": BACKUP_PRIORITY_LOWER,
+    "Wyższe dla grzałki wewnętrznej AH": BACKUP_PRIORITY_HIGHER,
+}
+_BACKUP_DESCS: list[HeikoSelectEntityDescription] = [
+    HeikoSelectEntityDescription(
+        key="backup_priority_heating",
+        name="Backup Priority (Heating)",
+        icon="mdi:radiator",
+        options=_BACKUP_PRIORITY_OPTIONS,
+        read_key="Backup_Priority_HBH",
+        write=lambda coord, v: coord.async_set_backup_priority_heating(v),
+    ),
+    HeikoSelectEntityDescription(
+        key="backup_priority_dhw",
+        name="Backup Priority (DHW)",
+        icon="mdi:water-boiler",
+        options=_BACKUP_PRIORITY_OPTIONS,
+        read_key="HBH_State",   # slot 50 (legacy key name, see coordinator.py)
+        write=lambda coord, v: coord.async_set_backup_priority_dhw(v),
+    ),
+]
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
@@ -122,7 +151,8 @@ async def async_setup_entry(
     mn_str = entry.data["mn"]
     async_add_entities([
         HeikoModeSelectEntity(coordinator, mn_str),
-        *(HeikoSelectEntity(coordinator, mn_str, desc) for desc in _CIRC_PUMP_DESCS),
+        *(HeikoSelectEntity(coordinator, mn_str, desc)
+          for desc in _CIRC_PUMP_DESCS + _BACKUP_DESCS),
     ])
 
 

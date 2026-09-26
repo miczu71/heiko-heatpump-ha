@@ -262,3 +262,109 @@ set_anti_leg_finish:
           max: 240
           step: 1
           unit_of_measurement: "min"
+
+set_backup_heating:
+  name: Set Backup Source For Heating
+  description: "Declare that an additional heat source (HBH) is present when heating (panel: \"Dodatkowe źródła ciepła\", row 1)."
+  fields:
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean:
+
+set_backup_priority_heating:
+  name: Set Backup Priority (Heating)
+  description: Priority of the additional heat source relative to AH when assisting heating (panel row 2).
+  fields:
+    priority:
+      name: Priority
+      description: 0 = lower than the internal heater AH (AH first), 1 = higher than AH (additional source first).
+      required: true
+      selector:
+        select:
+          options:
+            - value: "0"
+              label: Lower than AH
+            - value: "1"
+              label: Higher than AH
+
+set_backup_dhw:
+  name: Set Backup Source For DHW
+  description: Declare that an additional heat source (HWTBH) is present when heating DHW (panel row 3).
+  fields:
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean:
+
+set_backup_priority_dhw:
+  name: Set Backup Priority (DHW)
+  description: Priority of the DHW additional heat source relative to AH (panel row 4; same slot as set_hbh).
+  fields:
+    priority:
+      name: Priority
+      description: 0 = lower than the internal heater AH (AH first), 1 = higher than AH (additional source first).
+      required: true
+      selector:
+        select:
+          options:
+            - value: "0"
+              label: Lower than AH
+            - value: "1"
+              label: Higher than AH
+
+set_backup_accum:
+  name: Set Backup Start Dependency
+  description: Dependency between target temperature and the additional source start time (panel row 5, 0–600).
+  fields:
+    value:
+      name: Value
+      description: Panel range 0–600.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 600
+          step: 1
+
+set_backup_start_delay:
+  name: Set Backup Start Delay
+  description: Time until the additional source (heater, boiler) is started (panel page 2/2, first row).
+  fields:
+    minutes:
+      name: Delay
+      description: Delay in minutes (1–120).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 120
+          step: 1
+          unit_of_measurement: "min"
+
+set_reduced_setpoint:
+  name: Set Reduced Setpoint
+  description: "Turn the reduced setpoint (panel: \"Wartość zadana\", menu 5.1) on or off."
+  fields:
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean:
+
+set_reduced_drop:
+  name: Set Reduced Setpoint Drop
+  description: Temperature drop/rise applied while the reduced setpoint is on (menu 5.2). The panel minimum is 2 °C.
+  fields:
+    temperature:
+      name: Drop
+      description: Drop in °C (2–10).
+      required: true
+      selector:
+        number:
+          min: 2
+          max: 10
+          step: 1
+          unit_of_measurement: "°C"

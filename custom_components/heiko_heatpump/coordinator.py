@@ -53,6 +53,14 @@ from .protocol import (
     build_set_circ_pump_run_time,
     build_set_circ_pump_speed_heating,
     build_set_circ_pump_speed_dhw,
+    build_set_backup_heating,
+    build_set_backup_priority_heating,
+    build_set_backup_dhw,
+    build_set_backup_priority_dhw,
+    build_set_backup_accum,
+    build_set_backup_start_delay,
+    build_set_reduced_setpoint,
+    build_set_reduced_drop,
     extract_all_params,
     extract_all_floats,
 )
@@ -102,10 +110,12 @@ _SETDATA_MAP: list[tuple[int, str, float | None, int | None]] = [
     #
     # idx 50 is NOT re-added here: it's already "HBH_State" above, written by
     # async_set_hbh()/WRITE_IDX_HBH (marked "confirmed MITM" — tested by
-    # traffic capture). The portal labels it "Priority for Backup Heating
-    # Sources (HWTBH)" (par51), not an HBH on/off — the existing key name may
-    # be imprecise, but the write behaviour was empirically confirmed and is
-    # out of scope for this read-only pass. Left as-is; flag for Etap 5.
+    # traffic capture). Despite the key name it is NOT an HBH on/off: the
+    # portal ("Priority for Backup Heating Sources (HWTBH)", par51) and, since
+    # 26.09.2026, the physical panel confirm it is the priority of the DHW
+    # backup heater vs AH (0=lower/AH first, 1=higher). The key name is kept
+    # (renaming would orphan history); the select "backup_priority_dhw" is the
+    # correct control, the old switch is an alias of the same slot.
     (44,  "Vacation_Mode",              None, None),
     (45,  "Vacation_DHW_Drop",          None, 1),
     (46,  "Vacation_Heating_Drop",      None, 1),
@@ -641,6 +651,53 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         0=high, 1=medium, 2=low."""
         await self._send_write(build_set_circ_pump_speed_dhw(self._mn, value),
                                f"Circ pump P0 speed (DHW) → {value}")
+
+    # ── Backup heat sources + reduced setpoint (panel-confirmed 2026-09-26) ──
+    # Write index == setdata index. Slot → panel row confirmed by isolated
+    # panel changes; the write path itself is verified by a live HA write test
+    # before 1.13.0 is announced as confirmed (see CHANGELOG).
+
+    async def async_set_backup_heating(self, on: bool) -> None:
+        """Additional heat source present when heating (HBH). Write index 47."""
+        await self._send_write(build_set_backup_heating(self._mn, on),
+                               f"Backup source for heating → {'ON' if on else 'OFF'}")
+
+    async def async_set_backup_priority_heating(self, value: int) -> None:
+        """Priority of the additional source vs AH when heating. Write index 48.
+        0=lower than AH, 1=higher than AH."""
+        await self._send_write(build_set_backup_priority_heating(self._mn, value),
+                               f"Backup priority (heating) → {value}")
+
+    async def async_set_backup_dhw(self, on: bool) -> None:
+        """Additional heat source present when heating DHW (HWTBH). Write index 49."""
+        await self._send_write(build_set_backup_dhw(self._mn, on),
+                               f"Backup source for DHW → {'ON' if on else 'OFF'}")
+
+    async def async_set_backup_priority_dhw(self, value: int) -> None:
+        """Priority of the DHW additional source vs AH. Write index 50
+        (same slot as async_set_hbh). 0=lower than AH, 1=higher than AH."""
+        await self._send_write(build_set_backup_priority_dhw(self._mn, value),
+                               f"Backup priority (DHW) → {value}")
+
+    async def async_set_backup_accum(self, value: float) -> None:
+        """Temperature↔time dependency of the additional source. Write index 51, 0–600."""
+        await self._send_write(build_set_backup_accum(self._mn, value),
+                               f"Backup accumulating value → {value:.0f}")
+
+    async def async_set_backup_start_delay(self, minutes: float) -> None:
+        """Time until the additional source starts, minutes. Write index 52."""
+        await self._send_write(build_set_backup_start_delay(self._mn, minutes),
+                               f"Backup start delay → {minutes:.0f} min")
+
+    async def async_set_reduced_setpoint(self, on: bool) -> None:
+        """Reduced setpoint on/off. Write index 77."""
+        await self._send_write(build_set_reduced_setpoint(self._mn, on),
+                               f"Reduced setpoint → {'ON' if on else 'OFF'}")
+
+    async def async_set_reduced_drop(self, celsius: float) -> None:
+        """Reduced setpoint drop/rise in °C. Write index 78 (panel minimum 2)."""
+        await self._send_write(build_set_reduced_drop(self._mn, celsius),
+                               f"Reduced setpoint drop → {celsius:.0f}°C")
 
     async def _send_write(self, frame_bytes: bytes, description: str) -> None:
         """Send a CMD 0x05 write frame and log it."""

@@ -3,6 +3,62 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.13.0] - 2026-09-26
+
+Panel-confirmed control of the reduced setpoint and of the additional heat sources ("Dodatkowe źródła ciepła"). Slot → panel-row mapping was confirmed on 2026-09-26 by isolated single-field changes on the physical panel (each change moved exactly one slot in the setdata frame). Writes use the same `write index == setdata index` rule as every other confirmed slot; the live write + read-back from HA is verified separately after release.
+
+### Added
+- **Switches:** Backup Source For Heating (slot 47), Backup Source For DHW (49), Reduced Setpoint (77)
+- **Selects:** Backup Priority (Heating) (48), Backup Priority (DHW) (50) — options "Niższe / Wyższe dla grzałki wewnętrznej AH" (0 / 1)
+- **Numbers:** Reduced Setpoint Drop/Rise (78, 2–10 °C; the panel rejects values below 2), Backup Source Start Dependency (51, 0–600), Backup Source Start Delay (52, 1–120 min)
+- **Services:** `set_backup_heating`, `set_backup_priority_heating`, `set_backup_dhw`, `set_backup_priority_dhw`, `set_backup_accum`, `set_backup_start_delay`, `set_reduced_setpoint`, `set_reduced_drop`
+- README: complete rewrite from the code — every entity (with default-enabled state), every service, the backup-heat-source explanation and the register-mapping method
+- Tests: `TestBackupAndReducedWrites` (index and value of every new builder, CRC-valid frames, legacy slot-50 inversion)
+
+### Changed
+- **Slot 50 is a priority, not an on/off switch.** The panel shows it as "Priorytet dla dodatkowego źródła ciepła w podgrzewaczu c.w.u.": 0 = lower than the internal heater AH (AH first), 1 = higher. `switch.…_backup_heater_hbh` keeps its entity ID and its behaviour (ON writes 0) but is renamed **DHW Backup Priority Lower Than AH** and documented as a legacy alias of the new select. `set_hbh` and `build_set_hbh` are unchanged.
+- `tests/test_protocol.py` no longer needs Home Assistant to be installed (it stubs the package so only `protocol.py` is imported), as the README always claimed.
+
+### Removed
+- Read-only duplicates superseded by the new controls (all were disabled by default): binary sensors *Backup Heating Sources For Heating*, *Backup Heater HBH Priority Higher Than AH*, *Backup Heating Source For DHW*, *Reduced Setpoint*; sensors *Backup Heater HBH Start Accumulating Value*, *Backup Heater HWTBH Temp Rise Interval*, *Reduced Setpoint Temp Drop/Rise*. Their registry entries become orphaned and can be deleted.
+
+### Unchanged (still read-only)
+- Quiet operation (79/80) and electrical utility lock (82–84): not changed on the panel, so not confirmed.
+
+## [1.12.0] - 2026-09-23
+
+### Added
+- Circulation pump P0 control (Etap 7), mapped by a live panel-diff session on the installer menu: selects *Circulation Pump P0 Type* (86), *Mode* (88, incl. "always on"), *Speed (Heating)* (130), *Speed (DHW)* (132); numbers *Run Time* (90, 1–30 min) and *Stop Time* (89, 1–60 min)
+- Generic description-driven `HeikoSelectEntity` in `select.py`
+
+## [1.11.1] - 2026-09-17
+
+### Changed
+- Vacation Mode write (slot 44) confirmed by a real turn on/off with a diagnostics read-back (0→1→0)
+
+## [1.11.0] - 2026-09-17
+
+### Added
+- `number.heating_setpoint` (write index 37, 15–55 °C) — only available while the heating curve is off; service `set_heating_setpoint`
+- `switch.vacation_mode` (slot 44) replacing the read-only binary sensor; service `set_vacation_mode`
+
+## [1.10.0] - 2026-09-17
+
+### Added
+- 40 newly named parameters as read-only entities (circuit 2, backup-source priorities, shifting priority, reheating, reduced setpoint / quiet operation, electrical utility lock, timers), named via the vendor portal and cross-validated against a live diagnostics dump (74 pairs, 0 mismatches). Two binary sensors are enabled by default, the rest disabled
+- Generic `HeikoBinarySensorEntityDescription` pattern in `binary_sensor.py`
+
+## [1.9.0] - 2026-09-17
+
+### Added
+- Full slot diagnostics: `extract_all_floats()`, and diagnostics dumps now include `raw_realtime_hex`, `raw_setdata_hex`, payload lengths, `frame_counts`, `all_floats_realtime`, `all_floats_setdata`
+- `debug_slot_logging` option — logs every changed slot at INFO level
+
+### Fixed
+- `COP Estimated` / `Thermal Output Power` no longer produce fictitious values in DHW mode: computed only when `WorkingMode == Heating` and the water pump runs
+- `-99.0` sentinel on Tv1/Tv2 (uninstalled sensors) is filtered
+- `async_migrate_entry` back-fills `flow_rate_lps` / `debug_slot_logging` for older config entries
+
 ## [1.8.6] - 2026-08-26
 
 ### Fixed (test suite only — no production code changed)

@@ -426,20 +426,6 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         entity_registry_enabled_default=False,
     ),
     HeikoSensorEntityDescription(
-        key="Backup_HBH_Accum_Value",
-        name="Backup Heater HBH Start Accumulating Value",
-        state_class=SensorStateClass.MEASUREMENT,
-        precision=1,
-        entity_registry_enabled_default=False,
-    ),
-    HeikoSensorEntityDescription(
-        key="Backup_HWTBH_Temp_Rise_Interval",
-        name="Backup Heater HWTBH Temp Rise Interval",
-        state_class=SensorStateClass.MEASUREMENT,
-        precision=1,
-        entity_registry_enabled_default=False,
-    ),
-    HeikoSensorEntityDescription(
         key="Shifting_Priority_Start_Temp",
         name="Shifting Priority Starting Temp",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
@@ -487,15 +473,6 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
     HeikoSensorEntityDescription(
         key="Reheating_Restart_DT",
         name="Reheating Restart DT",
-        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
-        device_class=SensorDeviceClass.TEMPERATURE,
-        state_class=SensorStateClass.MEASUREMENT,
-        precision=1,
-        entity_registry_enabled_default=False,
-    ),
-    HeikoSensorEntityDescription(
-        key="Reduced_Setpoint_Drop",
-        name="Reduced Setpoint Temp Drop/Rise",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,

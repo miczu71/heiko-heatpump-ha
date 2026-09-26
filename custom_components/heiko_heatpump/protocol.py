@@ -497,7 +497,7 @@ WRITE_IDX_CURVE_AMB          = [24, 25, 26, 27, 28]   # points 1-5
 WRITE_IDX_CURVE_WATER        = [29, 30, 31, 32, 33]   # points A-E (1-5)
 WRITE_IDX_HEATING            = 37   # °C  (confirmed MITM)
 WRITE_IDX_HEATING_CURVE      = 23   # 0.0=off, 1.0=on  (confirmed MITM)
-WRITE_IDX_HBH                = 50   # backup heater: 0.0=enabled, 1.0=disabled (inverted, confirmed MITM)
+WRITE_IDX_HBH                = 50   # legacy name: really the DHW backup-heater priority vs AH (0=lower, 1=higher; panel 26.09)
 WRITE_IDX_DHW                = 54   # °C  (confirmed MITM)
 WRITE_IDX_DHW_RESTART_DT     = 55   # °C ΔT at which DHW reheating restarts  (confirmed MITM)
 WRITE_IDX_DHW_STORAGE        = 62   # DHW storage: 0.0=off, 1.0=on  (confirmed MITM)
@@ -554,8 +554,15 @@ def build_set_heating_curve(mn: bytes, on: bool, **kwargs) -> bytes:
 
 
 def build_set_hbh(mn: bytes, on: bool, **kwargs) -> bytes:
-    """Enable/disable backup heater (HBH). Write index 50. Confirmed MITM.
-    Note: pump logic is inverted — 0.0 enables, 1.0 disables."""
+    """Legacy alias for slot 50 (write index 50). Confirmed MITM.
+
+    Despite the historical name this is NOT an on/off switch for the backup
+    heater: the panel (26.09.2026) labels slot 50 "Priorytet dla dodatkowego
+    źródła ciepła w podgrzewaczu c.w.u. przy wspomaganiu c.w.u." — the priority
+    of the DHW backup heater (HWTBH) relative to the internal heater AH.
+    0.0 = "Niższe dla grzałki wewnętrznej AH" (AH first), 1.0 = "Wyższe" (HWTBH
+    first). ``on=True`` writes 0.0 (AH first); kept unchanged so existing
+    automations keep working. New code: build_set_backup_priority_dhw()."""
     return build_write_param(mn, WRITE_IDX_HBH, 0.0 if on else 1.0, **kwargs)
 
 
@@ -696,6 +703,72 @@ def build_set_circ_pump_speed_dhw(mn: bytes, value: int, **kwargs) -> bytes:
     """Circulation pump P0 speed in DHW mode. Write index 132. Confirmed panel
     2026-09-23. Use CIRC_PUMP_SPEED_* constants."""
     return build_write_param(mn, WRITE_IDX_CIRC_PUMP_SPEED_DHW, float(value), **kwargs)
+
+
+# Backup heat sources ("Dodatkowe źródła ciepła", panel menu pages 1/2 and 2/2)
+# and the reduced setpoint ("Ograniczona nastawa", menu group 5).
+# Slot → panel row confirmed 2026-09-26 by isolated single-field changes on
+# the physical panel (each produced exactly one changed slot in the setdata
+# frame): 47/48/49/51/52 in the afternoon, 77/78 in the morning. Write index ==
+# setdata index (same rule as vacation 44, DHW 54, P0 86–90). WRITES to these
+# slots are not yet confirmed by a live write from HA — see CHANGELOG 1.13.0.
+WRITE_IDX_BACKUP_HEATING          = 47   # ☐ additional source when heating (HBH present): 0/1
+WRITE_IDX_BACKUP_PRIORITY_HEATING = 48   # priority of HBH vs AH when heating: 0=lower, 1=higher
+WRITE_IDX_BACKUP_DHW              = 49   # ☐ additional source when heating DHW (HWTBH present): 0/1
+# idx 50 = priority of HWTBH vs AH for DHW → WRITE_IDX_HBH above (legacy name)
+WRITE_IDX_BACKUP_ACCUM            = 51   # temperature↔time dependency, panel range 0–600 (portal: 100)
+WRITE_IDX_BACKUP_START_DELAY      = 52   # page 2/2 "time to start the additional source", minutes
+WRITE_IDX_REDUCED_SETPOINT        = 77   # ☐ "Wartość zadana" (reduced setpoint on): 0/1
+WRITE_IDX_REDUCED_DROP            = 78   # °C drop/rise of the target; panel minimum 2 (1 is rejected)
+
+BACKUP_PRIORITY_LOWER  = 0   # "Niższe dla grzałki wewnętrznej AH" (AH first)
+BACKUP_PRIORITY_HIGHER = 1   # "Wyższe dla grzałki wewnętrznej AH" (additional source first)
+
+
+def build_set_backup_heating(mn: bytes, on: bool, **kwargs) -> bytes:
+    """Additional heat source present when heating (HBH). Write index 47."""
+    return build_write_param(mn, WRITE_IDX_BACKUP_HEATING, 1.0 if on else 0.0, **kwargs)
+
+
+def build_set_backup_priority_heating(mn: bytes, value: int, **kwargs) -> bytes:
+    """Priority of the additional source vs AH when heating. Write index 48.
+    Use BACKUP_PRIORITY_* constants."""
+    return build_write_param(mn, WRITE_IDX_BACKUP_PRIORITY_HEATING, float(value), **kwargs)
+
+
+def build_set_backup_dhw(mn: bytes, on: bool, **kwargs) -> bytes:
+    """Additional heat source present when heating DHW (HWTBH). Write index 49."""
+    return build_write_param(mn, WRITE_IDX_BACKUP_DHW, 1.0 if on else 0.0, **kwargs)
+
+
+def build_set_backup_priority_dhw(mn: bytes, value: int, **kwargs) -> bytes:
+    """Priority of the DHW additional source vs AH. Write index 50 (same slot as
+    the legacy build_set_hbh, but with the value written directly).
+    Use BACKUP_PRIORITY_* constants."""
+    return build_write_param(mn, WRITE_IDX_HBH, float(value), **kwargs)
+
+
+def build_set_backup_accum(mn: bytes, value: float, **kwargs) -> bytes:
+    """Dependency between target temperature and additional-source start time
+    (menu 9.5). Write index 51, panel range 0–600."""
+    return build_write_param(mn, WRITE_IDX_BACKUP_ACCUM, float(value), **kwargs)
+
+
+def build_set_backup_start_delay(mn: bytes, minutes: float, **kwargs) -> bytes:
+    """Time until the additional source (heater, boiler) is started, minutes.
+    Write index 52 (panel page 2/2, first row)."""
+    return build_write_param(mn, WRITE_IDX_BACKUP_START_DELAY, float(minutes), **kwargs)
+
+
+def build_set_reduced_setpoint(mn: bytes, on: bool, **kwargs) -> bytes:
+    """Reduced setpoint on/off (menu 5.1, checkbox "Wartość zadana"). Write index 77."""
+    return build_write_param(mn, WRITE_IDX_REDUCED_SETPOINT, 1.0 if on else 0.0, **kwargs)
+
+
+def build_set_reduced_drop(mn: bytes, celsius: float, **kwargs) -> bytes:
+    """Reduced setpoint temperature drop/rise, °C (menu 5.2). Write index 78.
+    The panel rejects values below 2."""
+    return build_write_param(mn, WRITE_IDX_REDUCED_DROP, float(celsius), **kwargs)
 
 
 # ── Frame stream parser ────────────────────────────────────────────────────────
