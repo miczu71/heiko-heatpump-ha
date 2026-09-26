@@ -67,6 +67,38 @@ def _register_services(hass: HomeAssistant) -> None:
         for coord in _all_coordinators(hass):
             await coord.async_set_vacation_mode(call.data["enabled"])
 
+    async def set_backup_heating(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_backup_heating(call.data["enabled"])
+
+    async def set_backup_priority_heating(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_backup_priority_heating(call.data["priority"])
+
+    async def set_backup_dhw(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_backup_dhw(call.data["enabled"])
+
+    async def set_backup_priority_dhw(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_backup_priority_dhw(call.data["priority"])
+
+    async def set_backup_accum(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_backup_accum(call.data["value"])
+
+    async def set_backup_start_delay(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_backup_start_delay(call.data["minutes"])
+
+    async def set_reduced_setpoint(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_reduced_setpoint(call.data["enabled"])
+
+    async def set_reduced_drop(call: ServiceCall) -> None:
+        for coord in _all_coordinators(hass):
+            await coord.async_set_reduced_drop(call.data["temperature"])
+
     async def set_mode(call: ServiceCall) -> None:
         mode = call.data["mode"]
         if isinstance(mode, str):
@@ -149,6 +181,29 @@ def _register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, "set_vacation_mode", set_vacation_mode,
         schema=vol.Schema({vol.Required("enabled"): cv.boolean}),
+    )
+    _bool_schema = vol.Schema({vol.Required("enabled"): cv.boolean})
+    _priority_schema = vol.Schema({
+        vol.Required("priority"): vol.All(vol.Coerce(int), vol.In((0, 1))),
+    })
+    hass.services.async_register(DOMAIN, "set_backup_heating", set_backup_heating, schema=_bool_schema)
+    hass.services.async_register(DOMAIN, "set_backup_priority_heating", set_backup_priority_heating,
+                                 schema=_priority_schema)
+    hass.services.async_register(DOMAIN, "set_backup_dhw", set_backup_dhw, schema=_bool_schema)
+    hass.services.async_register(DOMAIN, "set_backup_priority_dhw", set_backup_priority_dhw,
+                                 schema=_priority_schema)
+    hass.services.async_register(
+        DOMAIN, "set_backup_accum", set_backup_accum,
+        schema=vol.Schema({vol.Required("value"): vol.All(vol.Coerce(float), vol.Range(min=0, max=600))}),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_backup_start_delay", set_backup_start_delay,
+        schema=vol.Schema({vol.Required("minutes"): vol.All(vol.Coerce(float), vol.Range(min=1, max=120))}),
+    )
+    hass.services.async_register(DOMAIN, "set_reduced_setpoint", set_reduced_setpoint, schema=_bool_schema)
+    hass.services.async_register(
+        DOMAIN, "set_reduced_drop", set_reduced_drop,
+        schema=vol.Schema({vol.Required("temperature"): vol.All(vol.Coerce(float), vol.Range(min=2, max=10))}),
     )
     hass.services.async_register(
         DOMAIN, "set_mode", set_mode,
@@ -332,6 +387,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "set_curve_ambient_temp", "set_curve_water_temp",
                 "set_anti_leg_program", "set_anti_leg_setpoint",
                 "set_anti_leg_duration", "set_anti_leg_finish",
+                "set_backup_heating", "set_backup_priority_heating",
+                "set_backup_dhw", "set_backup_priority_dhw",
+                "set_backup_accum", "set_backup_start_delay",
+                "set_reduced_setpoint", "set_reduced_drop",
             ):
                 hass.services.async_remove(DOMAIN, svc)
 

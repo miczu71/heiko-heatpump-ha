@@ -45,9 +45,14 @@ _SWITCH_DESCS: list[HeikoSwitchEntityDescription] = [
         read_key="HeatingCurve_State",
         write=lambda coord, v: coord.async_set_heating_curve(v),
     ),
+    # Legacy alias of slot 50. The panel (26.09.2026) shows slot 50 as "Priority
+    # of the DHW additional source vs AH" (0 = lower than AH, 1 = higher), NOT
+    # an HBH on/off. ON = 0 = "lower than AH" (AH first). entity_id and
+    # unique_id are unchanged on purpose (automations reference them); the
+    # select "DHW Backup Priority" is the preferred control of the same slot.
     HeikoSwitchEntityDescription(
         key="hbh_switch",
-        name="Backup Heater (HBH)",
+        name="DHW Backup Priority Lower Than AH",
         icon="mdi:radiator",
         read_key="HBH_State",
         write=lambda coord, v: coord.async_set_hbh(v),
@@ -76,6 +81,30 @@ _SWITCH_DESCS: list[HeikoSwitchEntityDescription] = [
         icon="mdi:bag-suitcase",
         read_key="Vacation_Mode",
         write=lambda coord, v: coord.async_set_vacation_mode(v),
+    ),
+    # 26.09.2026: slot → panel row confirmed by isolated panel changes
+    # (docs/heiko_register_map.md, homeassistant-config). These supersede the
+    # former read-only binary sensors for the same slots.
+    HeikoSwitchEntityDescription(
+        key="backup_heating_for_heating",
+        name="Backup Source For Heating",
+        icon="mdi:radiator-disabled",
+        read_key="Backup_Heating_For_Heating",
+        write=lambda coord, v: coord.async_set_backup_heating(v),
+    ),
+    HeikoSwitchEntityDescription(
+        key="backup_source_dhw",
+        name="Backup Source For DHW",
+        icon="mdi:water-boiler-alert",
+        read_key="Backup_Source_DHW",
+        write=lambda coord, v: coord.async_set_backup_dhw(v),
+    ),
+    HeikoSwitchEntityDescription(
+        key="reduced_setpoint",
+        name="Reduced Setpoint",
+        icon="mdi:thermometer-minus",
+        read_key="Reduced_Setpoint",
+        write=lambda coord, v: coord.async_set_reduced_setpoint(v),
     ),
 ]
 
