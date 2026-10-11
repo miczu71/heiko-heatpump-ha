@@ -58,7 +58,7 @@ _BASE_DESCS: list[HeikoNumberEntityDescription] = [
         icon="mdi:radiator",
         min_value=15.0, max_value=55.0, step=1.0,
         unit=UnitOfTemperature.CELSIUS,
-        read_key="Setpoint",
+        read_key="Heating_Setpoint_NoCurve",
         write=lambda coord, v: coord.async_set_heating_setpoint(v),
         available_when=lambda coord: (
             coord.data is not None

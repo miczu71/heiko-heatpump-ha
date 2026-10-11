@@ -173,7 +173,7 @@ Enabled by default:
 | Hot Water / DHW Temperature | `Tw` | °C |
 | Heating Circuit Return Temperature | `Tc` | °C |
 | Ambient Air Temperature | `Ta` | °C |
-| Heating Water Setpoint | `Setpoint` | °C |
+| Current Water Target | `Setpoint` | °C — what the pump is heating water to right now (curve result, or the DHW/anti-legionella target). Not the no-curve setpoint |
 | Supply Voltage | `Voltage` | V |
 | Compressor Current | `Current` | A |
 | Compressor Frequency | `Frequency` | Hz |

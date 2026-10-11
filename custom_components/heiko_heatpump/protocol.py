@@ -133,8 +133,10 @@ PARAM_MAP: dict[str, tuple[int, str, str]] = {
     "WaterPump":   (34,  "",      "Water pump state: 1.0 = running, 0.0 = stopped"),
 
     # ── Heating setpoint  (corrected index 37, cloud par36) ───────────────────
-    # par36=22.0°C = floor/radiator heating circuit target (confirmed)
-    "Setpoint":    (37,  "°C",    "Heating water setpoint"),
+    # par36 = current water target: curve result in heating (22–24 °C seen),
+    # 48/58 °C while heating DHW / anti-legionella (history 2026-10-08..11).
+    # The fixed no-curve setpoint is setdata idx 37 (par38), a different slot.
+    "Setpoint":    (37,  "°C",    "Current water target"),
 
     # ── Working-time counters  (corrected indices 42–44, cloud par41–43) ──────
     # par43=314 min HWTBH confirmed

@@ -79,6 +79,10 @@ _ISSUE_ID = "pump_not_responding"
 # precision: None → float(round(v)) for boolean/mode flags; 1 → round(v, 1) for temperatures/times
 _SETDATA_MAP: list[tuple[int, str, float | None, int | None]] = [
     (54,  "DHW_Setpoint",        0.0,  1),
+    # par38 "Set temp. for Heating (without heating curve)" — the value
+    # written by async_set_heating_setpoint(). Not the same as realtime idx 37
+    # ("Setpoint"), which is the pump's current water target (curve/DHW).
+    (37,  "Heating_Setpoint_NoCurve", 0.0, 1),
     (0,   "Power_State",         None, None),
     (3,   "Mode_Setdata",        None, None),
     (23,  "HeatingCurve_State",  None, None),

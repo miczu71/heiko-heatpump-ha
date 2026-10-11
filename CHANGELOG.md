@@ -3,6 +3,14 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.13.1] - 2026-10-11
+
+### Fixed
+- **Heating Setpoint (number) showed the wrong register.** It read realtime slot 37 (portal par36), which is the pump's *current* water target — the curve result while heating, 48/58 °C while heating DHW / anti-legionella — instead of setdata slot 37 (par38, "Set temp. for Heating (without heating curve)"), the slot it writes to. It now reads setdata slot 37 (new key `Heating_Setpoint_NoCurve`), so it shows the value set on the panel. Writes are unchanged.
+
+### Changed
+- Sensor *Heating Water Setpoint* (`Setpoint`, realtime slot 37) renamed to **Current Water Target** to say what it is. Entity ID unchanged, so history, automations and dashboards keep working.
+
 ## [1.13.0] - 2026-09-26
 
 Panel-confirmed control of the reduced setpoint and of the additional heat sources ("Dodatkowe źródła ciepła"). Slot → panel-row mapping was confirmed on 2026-09-26 by isolated single-field changes on the physical panel (each change moved exactly one slot in the setdata frame). Writes use the same `write index == setdata index` rule as every other confirmed slot, and were **verified live from HA the same day** (16:31–16:35, right after the release): every write was read back from the pump's own setdata frame and reverted — 78 2→3→2, 77 0→1→0, 47 0→1→0, 48 0→1→0, 49 1→0→1, 50 1→0→1 (via the select; the legacy switch followed correctly), 51 100→110→100, 52 20→22→20. Exactly one slot changed per write and the final frame was identical to the baseline.

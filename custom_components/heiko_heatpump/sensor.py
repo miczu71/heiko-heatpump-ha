@@ -153,10 +153,12 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         precision=1,
         entity_registry_enabled_default=False,
     ),
-    # Heating setpoint: index 37, cloud par36 (floor/radiator circuit target)
+    # Realtime index 37, cloud par36: the pump's current water target — the
+    # curve result in heating, the DHW/anti-legionella target while heating
+    # water. Not the fixed no-curve setpoint (setdata 37, number entity).
     HeikoSensorEntityDescription(
         key="Setpoint",
-        name="Heating Water Setpoint",
+        name="Current Water Target",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
