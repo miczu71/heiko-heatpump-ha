@@ -62,7 +62,7 @@ Should also work with Neoheat and ECOtouch models using the same USR-W600 bridge
 | Port | `8899` | TCP port (W600 SocketA default) |
 | MN | `A1B2C3D4E5F6` | Unit identifier — the W600's WiFi MAC address (no colons), found on the W600 label or in its web UI under **Device Info → MAC** |
 | Flow rate | `0.29` | Water flow rate in L/s (used for COP estimation). Eko II 6=0.29, 9=0.43, 12=0.57, 15=0.71, 19=0.92 |
-| Slot logging | off | Log every changed setdata/realtime slot at INFO level |
+| Slot logging | off | Options flow only. Log every changed setdata/realtime slot at INFO level |
 | Power meter | `sensor.heat_pump_power` | Optional (options flow only). External power sensor (W or kW) used for COP instead of the pump's own voltage × current, which covers only the compressor and is apparent power |
 
 Settings can be changed after setup via **Settings → Devices & Services → Heiko Heat Pump → Configure**.
@@ -232,6 +232,8 @@ Disabled by default (enable individually via Settings → Entities):
 | Circuit 2 Heating Curve Parallel Move | `Curve2_Parallel_Move` | °C |
 
 > `Thermal Output Power` = flow rate × 4186 × (Tuo − Tui), the supply/return of the unit's plate heat exchanger. `COP Estimated` = that divided by the external power meter if configured, otherwise by `Electrical Power` (V × I). Both are only computed while the pump is in **Heating** mode with the compressor running and 0.5 K < ΔT ≤ 10 K; otherwise they are `unknown`. The flow rate is the nominal value, not a measurement, so treat COP as an estimate. `COP Carnot` uses Tuo and the ambient temperature.
+>
+> `Outdoor Unit Delta T` (Tuo − Tui) is the water ΔT across the unit used for the values above. `Water Circuit Delta T` is Tw − Tc: DHW tank minus heating-circuit return, two different circuits, so it is not a physical ΔT of any single loop.
 
 ## Backup heat sources (AH / HBH / HWTBH)
 
@@ -319,6 +321,7 @@ Standalone scripts, not used by the integration. All require `--host YOUR_W600_I
 
 ```bash
 python tests/test_protocol.py
+python -m pytest tests/test_calc.py
 ```
 
-No HA installation required — the tests load only `protocol.py`.
+No HA installation required — the tests load only `protocol.py` and `calc.py`.
