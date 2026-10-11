@@ -8,6 +8,7 @@ CONF_PORT      = "port"
 CONF_MN        = "mn"   # stored as hex string, e.g. "A1B2C3D4E5F6"
 CONF_FLOW_RATE = "flow_rate_lps"  # water flow rate in L/s (for COP calculation)
 CONF_DEBUG_SLOT_LOGGING = "debug_slot_logging"  # log every changed setdata/realtime slot at INFO
+CONF_POWER_ENTITY = "power_entity"  # optional external power meter (W) for COP; "" = use V × I
 
 # Default connection parameters
 DEFAULT_PORT      = 8899

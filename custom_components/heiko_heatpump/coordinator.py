@@ -21,6 +21,7 @@ from homeassistant.helpers.issue_registry import IssueSeverity, async_create_iss
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from .calc import heating_efficiency
 from .const import DOMAIN, DEFAULT_FLOW_RATE
 from .protocol import (
     HeatPumpFrame,
@@ -198,6 +199,7 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         mn: bytes,
         flow_rate_lps: float = DEFAULT_FLOW_RATE,
         debug_slot_logging: bool = False,
+        power_entity: str = "",
     ) -> None:
         super().__init__(
             hass,
@@ -207,6 +209,7 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         )
         self._mn              = mn
         self._flow_rate_lps   = flow_rate_lps
+        self._power_entity    = power_entity
         self._debug_slot_logging = debug_slot_logging
         self._client          = HeikoTCPClient(host, port, self._on_frame, self._on_connection_change)
         self._latest_data: dict[str, float] = {}
@@ -239,6 +242,21 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
     @property
     def connected(self) -> bool:
         return self._client.connected
+
+    def _external_power_w(self) -> float | None:
+        """Current reading of the configured external power meter in W, or None."""
+        if not self._power_entity:
+            return None
+        state = self.hass.states.get(self._power_entity)
+        if state is None:
+            return None
+        try:
+            value = float(state.state)
+        except ValueError:
+            return None  # unavailable / unknown
+        if state.attributes.get("unit_of_measurement") == "kW":
+            value *= 1000.0
+        return value
 
     @property
     def last_seen(self) -> datetime | None:
@@ -465,35 +483,13 @@ class HeikoCoordinator(DataUpdateCoordinator[dict[str, float]]):
         if tw is not None and tc is not None:
             params["DeltaT_water"] = round(tw - tc, 2)
 
-        ta = params.get("Ta")
-        if tw is not None and ta is not None:
-            tw_k = tw + 273.15
-            ta_k = ta + 273.15
-            denom = tw_k - ta_k
-            if denom > 0.1:
-                params["COP_carnot"] = round(tw_k / denom, 2)
-
-        # COP_estimated / Thermal_power are only meaningful in Heating mode.
-        # WorkingMode == 2.0 (Heating) is required — not just WaterPump == 1.0 —
-        # because in DHW mode (WorkingMode == 1.0) the circulation pump keeps
-        # running while Tw reads the DHW tank and Tc reads the (idle) floor
-        # heating return: two unrelated circuits. The resulting "ΔT" is not a
-        # real gradient and was observed producing COP_estimated of 11–15 on a
-        # live DHW cycle (2026-09-17) despite WaterPump == 1.0 throughout — the
-        # ΔT-based guard alone (even capped at 15 °C) does not catch this.
-        working_mode = params.get("WorkingMode")
-        water_pump = params.get("WaterPump")
-        frequency = params.get("Frequency")
-        if (working_mode == 2.0 and water_pump == 1.0
-                and tw is not None and tc is not None and power_w is not None
-                and frequency is not None and frequency > 5.0 and power_w > 50.0):
-            dt_floor = tw - tc
-            # Cap ΔT at 15 °C: a larger delta means Tw and Tc are from different
-            # circuits, producing a bogus COP.
-            if 0.5 < dt_floor <= 15.0:
-                q_thermal = self._flow_rate_lps * 4186.0 * dt_floor
-                params["COP_estimated"] = round(q_thermal / power_w, 2)
-                params["Thermal_power"] = round(q_thermal, 1)
+        # Prefer the external meter (includes fan, pump, electronics and the
+        # heater AH, and is true active power); fall back to V × I when none
+        # is configured or it is unavailable.
+        external_w = self._external_power_w()
+        params.update(heating_efficiency(
+            params, self._flow_rate_lps, external_w if external_w is not None else power_w,
+        ))
 
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug("Received realtime data: %s", params)

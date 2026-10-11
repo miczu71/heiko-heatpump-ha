@@ -12,6 +12,7 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
 
 from .const import (
     DOMAIN,
@@ -22,6 +23,7 @@ from .const import (
     DEFAULT_FLOW_RATE,
     CONF_DEBUG_SLOT_LOGGING,
     DEFAULT_DEBUG_SLOT_LOGGING,
+    CONF_POWER_ENTITY,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -143,6 +145,7 @@ class HeikoOptionsFlow(config_entries.OptionsFlow):
                         CONF_MN:        mn_str.upper().replace(":", ""),
                         CONF_FLOW_RATE: float(user_input[CONF_FLOW_RATE]),
                         CONF_DEBUG_SLOT_LOGGING: bool(user_input[CONF_DEBUG_SLOT_LOGGING]),
+                        CONF_POWER_ENTITY: user_input.get(CONF_POWER_ENTITY, ""),
                     },
                 )
                 await self.hass.config_entries.async_reload(self._entry.entry_id)
@@ -159,6 +162,11 @@ class HeikoOptionsFlow(config_entries.OptionsFlow):
                     CONF_DEBUG_SLOT_LOGGING,
                     default=current.get(CONF_DEBUG_SLOT_LOGGING, DEFAULT_DEBUG_SLOT_LOGGING),
                 ): bool,
+                # Optional: suggested_value (not default) so the field can be cleared.
+                vol.Optional(
+                    CONF_POWER_ENTITY,
+                    description={"suggested_value": current.get(CONF_POWER_ENTITY) or None},
+                ): EntitySelector(EntitySelectorConfig(domain="sensor", device_class="power")),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

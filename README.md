@@ -28,7 +28,7 @@ Write indices were confirmed either by MITM-capturing live cloud→pump traffic,
 - **Repairs alert** — raises an issue in Settings → Repairs if the pump stops sending data for 5+ minutes; clears automatically on recovery
 - **Diagnostics** — download all sensor values plus the raw slot tables (`all_floats_realtime`, `all_floats_setdata`, raw hex) as JSON from the device page (host/MN redacted)
 - **Slot logging** — optional `debug_slot_logging` option logs every changed slot at INFO level (handy when mapping a new parameter)
-- **Options flow** — edit host, port, MN, flow rate and slot logging after setup
+- **Options flow** — edit host, port, MN, flow rate, slot logging and an optional external power meter for COP after setup
 - **Local push** — entities update within seconds of each pump frame; exponential-backoff TCP reconnect
 - **No cloud required** — all communication is direct TCP to the W600 bridge
 
@@ -63,6 +63,7 @@ Should also work with Neoheat and ECOtouch models using the same USR-W600 bridge
 | MN | `A1B2C3D4E5F6` | Unit identifier — the W600's WiFi MAC address (no colons), found on the W600 label or in its web UI under **Device Info → MAC** |
 | Flow rate | `0.29` | Water flow rate in L/s (used for COP estimation). Eko II 6=0.29, 9=0.43, 12=0.57, 15=0.71, 19=0.92 |
 | Slot logging | off | Log every changed setdata/realtime slot at INFO level |
+| Power meter | `sensor.heat_pump_power` | Optional (options flow only). External power sensor (W or kW) used for COP instead of the pump's own voltage × current, which covers only the compressor and is apparent power |
 
 Settings can be changed after setup via **Settings → Devices & Services → Heiko Heat Pump → Configure**.
 
@@ -230,7 +231,7 @@ Disabled by default (enable individually via Settings → Entities):
 | Control Panel Backlight (raw) | `Panel_Backlight` | None |
 | Circuit 2 Heating Curve Parallel Move | `Curve2_Parallel_Move` | °C |
 
-> `COP Estimated` and `Thermal Output Power` are only computed while the pump is in **Heating** mode with the water pump running; in DHW mode they are `unknown` by design (the DHW tank and the floor-heating return are separate circuits, so a ΔT-based figure would be fiction).
+> `Thermal Output Power` = flow rate × 4186 × (Tuo − Tui), the supply/return of the unit's plate heat exchanger. `COP Estimated` = that divided by the external power meter if configured, otherwise by `Electrical Power` (V × I). Both are only computed while the pump is in **Heating** mode with the compressor running and 0.5 K < ΔT ≤ 10 K; otherwise they are `unknown`. The flow rate is the nominal value, not a measurement, so treat COP as an estimate. `COP Carnot` uses Tuo and the ambient temperature.
 
 ## Backup heat sources (AH / HBH / HWTBH)
 

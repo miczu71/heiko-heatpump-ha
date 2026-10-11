@@ -33,6 +33,7 @@ from .const import (
     DEFAULT_FLOW_RATE,
     CONF_DEBUG_SLOT_LOGGING,
     DEFAULT_DEBUG_SLOT_LOGGING,
+    CONF_POWER_ENTITY,
 )
 from .coordinator import HeikoCoordinator
 from .protocol import MODE_STANDBY, MODE_HEATING, MODE_COOLING, MODE_DHW, MODE_AUTO
@@ -333,6 +334,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     mn_str    = entry.data[CONF_MN]
     flow_rate = float(entry.data.get(CONF_FLOW_RATE, DEFAULT_FLOW_RATE))
     debug_slot_logging = bool(entry.data.get(CONF_DEBUG_SLOT_LOGGING, DEFAULT_DEBUG_SLOT_LOGGING))
+    power_entity = entry.data.get(CONF_POWER_ENTITY, "")
 
     # Parse MN hex string → 6 bytes
     mn = bytes.fromhex(mn_str)
@@ -341,6 +343,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass, host, port, mn,
         flow_rate_lps=flow_rate,
         debug_slot_logging=debug_slot_logging,
+        power_entity=power_entity,
     )
 
     # Store coordinator for platforms to access

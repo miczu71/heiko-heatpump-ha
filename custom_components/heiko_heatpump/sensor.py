@@ -289,8 +289,8 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         precision=0,
     ),
-    # Thermal output power: flow × 4186 × (Setpoint − Tc)
-    # Only shown when compressor is running (Frequency > 5 Hz)
+    # Thermal output power: flow × 4186 × (Tuo − Tui), see calc.py
+    # Only shown while heating with the compressor running (Frequency > 5 Hz)
     HeikoSensorEntityDescription(
         key="Thermal_power",
         name="Thermal Output Power",
@@ -306,8 +306,9 @@ SENSOR_DESCRIPTIONS: tuple[HeikoSensorEntityDescription, ...] = (
         precision=2,
         entity_registry_enabled_default=False,
     ),
-    # COP estimated: Q_thermal / P_electrical — only when compressor running
-    # Uses configured flow rate (default 0.29 L/s for Eko II 6)
+    # COP estimated: Q_thermal / P_electrical — only while heating, compressor running
+    # Uses configured flow rate (default 0.29 L/s for Eko II 6) and the external
+    # power meter if one is configured, else V × I
     HeikoSensorEntityDescription(
         key="COP_estimated",
         name="COP Estimated",

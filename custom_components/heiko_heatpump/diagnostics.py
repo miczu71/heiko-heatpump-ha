@@ -22,6 +22,7 @@ async def async_get_config_entry_diagnostics(
             "mn": "**REDACTED**",
             "flow_rate_lps": entry.data.get("flow_rate_lps"),
             "debug_slot_logging": entry.data.get("debug_slot_logging"),
+            "power_entity": entry.data.get("power_entity"),
         },
         "connection": {
             "connected": coordinator.connected,

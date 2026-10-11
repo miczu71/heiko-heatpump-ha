@@ -3,6 +3,16 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.14.0] - 2026-10-11
+
+### Fixed
+- **COP Estimated and Thermal Output Power never appeared while heating.** They used Tw − Tc, but Tw is the DHW tank and Tc the heating-circuit water: two different circuits, 17–34 K apart in normal heating, so the 15 K plausibility cap always rejected them (and when it did not, the result was nonsense, 9–15). They now use Tuo − Tui, the supply/return of the unit's plate heat exchanger that the configured flow rate passes through. Live check (2026-10-11, 90 Hz, 7.7 °C outside): ΔT 4.3 K → about 5.2 kW thermal, COP about 2.9.
+- **COP Carnot** used the DHW tank temperature; it now uses the supply temperature Tuo.
+
+### Added
+- Options flow: optional **external power meter** (sensor in W or kW). When set, COP is computed from it instead of the pump's own voltage × current, which covers only the compressor and is apparent power. Falls back to V × I while the meter is unavailable.
+- `tests/test_calc.py`; the COP logic moved to the pure-Python `calc.py`.
+
 ## [1.13.1] - 2026-10-11
 
 ### Fixed
