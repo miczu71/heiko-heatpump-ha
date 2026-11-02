@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.14.1] - 2026-11-02
+
+### Changed
+- The `CRC mismatch` warning now also logs the command byte, the frame direction and the payload length (e.g. `cmd=0x06, server->unit, payload=0 B`). A frame with the same bad CRC has been logged once a minute for a long time; its received CRC equals the computed one without the 0x0903 offset, so it is a frame type with a different CRC rule, not line noise. The extra fields identify it. No behaviour change.
+
 ## [1.14.0] - 2026-10-11
 
 ### Fixed
