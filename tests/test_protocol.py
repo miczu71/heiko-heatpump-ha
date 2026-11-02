@@ -346,6 +346,26 @@ class TestParseFrame:
         assert frame is not None
         assert frame.crc_ok is False
 
+    def test_crc_mismatch_log_level(self, caplog):
+        """Realtime CRC mismatch warns; setparams (cmd 0x02, unit->server) stays at debug."""
+        import logging
+        rt = bytearray(build_request_realtime(TEST_MN))
+        rt[-3] ^= 0xFF
+        with caplog.at_level(logging.DEBUG):
+            parse_frame(bytes(rt))
+        assert any(r.levelno == logging.WARNING and "CRC mismatch" in r.message for r in caplog.records)
+
+        caplog.clear()
+        sp = bytearray(rt)
+        sp[0:2] = b"\xAA\x55"
+        sp[12] = 0x02  # CMD_SETPARAMS
+        sp[-3] ^= 0xFF
+        with caplog.at_level(logging.DEBUG):
+            frame = parse_frame(bytes(sp))
+        assert frame is not None and frame.crc_ok is False
+        recs = [r for r in caplog.records if "CRC mismatch" in r.message]
+        assert recs and all(r.levelno == logging.DEBUG for r in recs)
+
 
 # ── FrameBuffer ────────────────────────────────────────────────────────────────
 

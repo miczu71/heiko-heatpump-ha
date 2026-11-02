@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.14.2] - 2026-11-02
+
+### Changed
+- The `CRC mismatch` message for the pump's set-parameter snapshot (command 0x02, unit → server) is now logged at debug level instead of warning. That frame arrives with a CRC offset of `0x04B3` instead of the assumed `0x0DB0` and decodes correctly, so it produced a warning every minute without any data loss. Mismatches on all other frames (realtime, server → unit) still warn. No change to decoding.
+
 ## [1.14.1] - 2026-11-02
 
 ### Changed

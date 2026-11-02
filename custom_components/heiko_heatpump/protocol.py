@@ -269,7 +269,16 @@ def parse_frame(raw: bytes) -> Optional[HeatPumpFrame]:
     crc_ok = (recv_crc == computed_crc)
 
     if not crc_ok:
-        _LOGGER.warning(
+        # The pump's setparams snapshot (cmd 0x02) arrives with a CRC offset
+        # other than 0x0DB0 (0x04B3 observed); data decodes fine, so keep the
+        # once-a-minute noise out of the warning log. Other frames still warn.
+        _level = (
+            logging.DEBUG
+            if command == CMD_SETPARAMS and not is_server_to_unit
+            else logging.WARNING
+        )
+        _LOGGER.log(
+            _level,
             "CRC mismatch: received 0x%04X, computed 0x%04X "
             "(cmd=0x%02X, %s, payload=%d B). Frame may be corrupted.",
             recv_crc, computed_crc, command,
