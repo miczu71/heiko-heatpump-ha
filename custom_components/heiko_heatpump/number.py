@@ -69,7 +69,7 @@ _BASE_DESCS: list[HeikoNumberEntityDescription] = [
         key="dhw_setpoint",
         name="DHW Setpoint",
         icon="mdi:water-boiler",
-        min_value=40.0, max_value=60.0, step=1.0,
+        min_value=16.0, max_value=60.0, step=1.0,
         unit=UnitOfTemperature.CELSIUS,
         read_key="DHW_Setpoint",
         write=lambda coord, v: coord.async_set_dhw_setpoint(v),

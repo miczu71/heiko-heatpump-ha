@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.14.3] - 2026-11-09
+
+### Changed
+- The `DHW Setpoint` number now accepts 16–60 °C (the minimum was a hard-coded 40 °C). The pump itself accepts low values (e.g. 20 °C for an away period), so the lower bound only blocked legitimate use from Home Assistant. Upper bound and step are unchanged.
+
 ## [1.14.2] - 2026-11-02
 
 ### Changed
