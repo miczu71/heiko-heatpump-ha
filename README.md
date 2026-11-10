@@ -23,7 +23,7 @@ Write indices were confirmed either by MITM-capturing live cloud→pump traffic,
 - **7 selects** — working mode, circulation pump P0 (type, mode, speed in heating / DHW), priority of the additional heat source vs the internal heater AH (heating / DHW)
 - **24 number entities** — heating and DHW setpoints, heating-curve shift and all 10 curve breakpoints, hysteresis ΔT settings, Anti-Legionella, circulation pump P0 timing, reduced-setpoint drop, backup-source start delay/dependency
 - **15 binary sensors** — TCP connection, Anti-Legionella running, circuit 2 and lock/timer states (most disabled by default)
-- **59 sensors** — temperatures, pressures, compressor, electrical power, thermal power, COP estimate, working-time counters and 35 more parameters that are disabled by default
+- **74 sensors** — temperatures, pressures, compressor, electrical power, thermal power, COP estimate, working-time counters, 15 read-only installer limits and frost thresholds (diagnostic category) and 35 more parameters that are disabled by default
 - **26 HA services** — control every writable parameter from automations
 - **Repairs alert** — raises an issue in Settings → Repairs if the pump stops sending data for 5+ minutes; clears automatically on recovery
 - **Diagnostics** — download all sensor values plus the raw slot tables (`all_floats_realtime`, `all_floats_setdata`, raw hex) as JSON from the device page (host/MN redacted)
@@ -120,21 +120,21 @@ Panel option labels are kept verbatim (Polish) so they match the physical displa
 | Entity | Write index | Range | Description |
 |--------|-------------|-------|-------------|
 | Heating Setpoint | 37 | 15–55 °C | Heating water target **without** curve. Unavailable while the heating curve is on (the pump ignores it then) |
-| DHW Setpoint | 54 | 40–60 °C | Domestic hot water target temperature |
+| DHW Setpoint | 54 | 16–60 °C | Domestic hot water target temperature |
 | HC Parallel | 120 | −9…+9 °C | Heating curve parallel shift |
 | Heating Stops ΔT | 19 | 1–15 °C | Water ΔT above setpoint at which heating/cooling stops |
 | Heating Restarts ΔT | 20 | 1–15 °C | Water ΔT below setpoint at which heating/cooling restarts |
-| DHW Restart ΔT | 55 | 1–15 °C | DHW temperature drop that triggers reheating |
+| DHW Restart ΔT | 55 | 2–15 °C | DHW temperature drop that triggers reheating |
 | HC Amb 1–5 | 24–28 | −25…+20 °C | Ambient temperature breakpoints of the heating curve |
-| HC Water 1–5 | 29–33 | 15–60 °C | Target water temperature breakpoints of the heating curve |
-| Anti-Legionella Setpoint | 41 | 40–70 °C | Temperature the water must reach during the legionella cycle |
-| Anti-Legionella Duration | 42 | 1–120 min | How long the pump holds the setpoint |
-| Anti-Legionella Finish Time | 43 | 1–240 min | Cycle finish/timeout time |
-| Circulation Pump P0 Run Time | 90 | 1–30 min | Interval-mode run time (installation baseline: 1 min) |
-| Circulation Pump P0 Stop Time | 89 | 1–60 min | Interval-mode stop time (installation baseline: 6 min) |
+| HC Water 1–5 | 29–33 | 25–55 °C | Target water temperature breakpoints of the heating curve |
+| Anti-Legionella Setpoint | 41 | 60–70 °C | Temperature the water must reach during the legionella cycle |
+| Anti-Legionella Duration | 42 | 5–60 min | How long the pump holds the setpoint |
+| Anti-Legionella Finish Time | 43 | 10–240 min | Cycle finish/timeout time |
+| Circulation Pump P0 Run Time | 90 | 1–10 min | Interval-mode run time (installation baseline: 1 min) |
+| Circulation Pump P0 Stop Time | 89 | 5–60 min | Interval-mode stop time (installation baseline: 6 min) |
 | Reduced Setpoint Drop/Rise | 78 | 2–10 °C | Drop/rise applied while the reduced setpoint is on. The panel rejects values below 2 °C; factory value 5 °C |
 | Backup Source Start Dependency | 51 | 0–600 | Dependency between the target temperature and the time until the additional source starts (panel row 5, installation value 100) |
-| Backup Source Start Delay | 52 | 1–120 min | Time until the additional source (heater, boiler) is started (panel page 2/2, first row, installation value 20 min) |
+| Backup Source Start Delay | 52 | 5–120 min | Time until the additional source (heater, boiler) is started (panel page 2/2, first row, installation value 20 min) |
 
 ### Binary sensors
 
@@ -188,6 +188,19 @@ Enabled by default:
 | AH Working Time | `Time_AH` | min |
 | HBH Working Time | `Time_HBH` | min |
 | HWTBH Working Time | `Time_HWTBH` | min |
+
+Read-only installer settings (diagnostic category, never written; enabled by default):
+
+| Entity | Data key | Slot | Unit |
+|--------|----------|------|------|
+| DHW / Heating / Cooling Mode Available (raw) | `Mode_DHW_Enabled`, `Mode_Heating_Enabled`, `Mode_Cooling_Enabled` | 5–7 | 0/1 |
+| Low Frequency Run Duration | `Low_Freq_Run_Duration` | 12 | min |
+| Heating Setpoint Limit Max / Min | `Heating_Setpoint_Max`, `Heating_Setpoint_Min` | 13, 14 | °C |
+| Cooling Setpoint Limit Max / Min | `Cooling_Setpoint_Max`, `Cooling_Setpoint_Min` | 15, 16 | °C |
+| Circuit 2 Setpoint Limit Max / Min | `Circuit2_Setpoint_Max`, `Circuit2_Setpoint_Min` | 75, 76 | °C |
+| Frost Protection L1 Ambient Start | `Frost_L1_Ambient_Start` | 107 | °C |
+| Frost Protection L2 Ambient Start / Stop | `Frost_L2_Ambient_Start`, `Frost_L2_Ambient_Stop` | 108, 109 | °C |
+| Frost Protection L2 Water Start / Stop | `Frost_L2_Water_Start`, `Frost_L2_Water_Stop` | 110, 111 | °C |
 
 Plus five sensors implemented as dedicated entities: **Working Mode** (Standby / Heating / DHW / …), **Mode Setting** (configured mode, cloud par4), **Water Pump** (text state), and two diagnostics: **Last Seen** and **Reconnect Count**.
 
@@ -320,8 +333,7 @@ Standalone scripts, not used by the integration. All require `--host YOUR_W600_I
 ## Running tests
 
 ```bash
-python tests/test_protocol.py
-python -m pytest tests/test_calc.py
+python -m pytest tests
 ```
 
-No HA installation required — the tests load only `protocol.py` and `calc.py`.
+No HA installation required — the tests load `protocol.py` and `calc.py`, and read `coordinator.py`, `sensor.py`, `number.py` and the translation files as source.
