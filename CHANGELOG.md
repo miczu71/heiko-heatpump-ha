@@ -3,6 +3,15 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.15.0] - 2026-11-10
+
+### Added
+- 15 read-only diagnostic sensors for installer settings the pump already reports: availability of DHW/heating/cooling modes, low-frequency run duration, heating/cooling/circuit 2 setpoint limits and frost-protection thresholds. Nothing new is ever written to the pump.
+- Polish translation of the setup dialog, options and the "pump not responding" repair issue.
+
+### Changed
+- Several `number` ranges now match the limits the controller itself enforces (only narrowed, never widened): DHW Restart ΔT 2–15, Anti-Legionella setpoint 60–70 °C, duration 5–60 min, finish time 10–240 min, heating-curve water points 25–55 °C, circulation pump P0 run time 1–10 min and stop time 5–60 min, backup source start delay from 5 min. A value already stored on the pump outside the new range is still shown, but values written from Home Assistant are clamped to it.
+
 ## [1.14.3] - 2026-11-09
 
 ### Changed

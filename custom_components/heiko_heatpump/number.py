@@ -170,10 +170,6 @@ _CURVE_DESCS: list[HeikoNumberEntityDescription] = [
 ]
 
 
-# Ranges for DHW restart ΔT, anti-Legionella, curve water points, P0 timing and
-# backup start delay are clamped to the limits the controller itself enforces
-# (matched by parameter name; only ever narrowed, never widened).
-
 # Circulation pump P0 interval timing — Etap 7 (2026-09-23), confirmed by a
 # live panel diff session (installer-level menu, not covered by the portal
 # or the user manual). See docs/heiko_register_map.md (homeassistant-config
