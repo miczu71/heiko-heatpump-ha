@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.15.1] - 2026-11-10
+
+### Fixed
+- The example MAC address in the "invalid MN" setup message was a real device address; it is replaced with a neutral placeholder (`A1:B2:C3:D4:E5:F6`) in `strings.json` and all translations.
+
 ## [1.15.0] - 2026-11-10
 
 ### Added
