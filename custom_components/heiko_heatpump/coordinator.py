@@ -180,6 +180,25 @@ _SETDATA_MAP: list[tuple[int, str, float | None, int | None]] = [
     (90,  "Circ_Pump_Run_Time",          0.0,  1),
     (130, "Circ_Pump_Speed_Heating",     None, None),
     (132, "Circ_Pump_Speed_DHW",         None, None),
+
+    # ── Read-only diagnostics: installer limits and frost-protection thresholds.
+    # Slots matched by name against the controller's parameter list and
+    # confirmed against live values (2026-11-10). Never written.
+    (5,   "Mode_DHW_Enabled",            None, None),
+    (6,   "Mode_Heating_Enabled",        None, None),
+    (7,   "Mode_Cooling_Enabled",        None, None),
+    (12,  "Low_Freq_Run_Duration",       None, None),
+    (13,  "Heating_Setpoint_Max",        None, 1),
+    (14,  "Heating_Setpoint_Min",        None, 1),
+    (15,  "Cooling_Setpoint_Max",        None, 1),
+    (16,  "Cooling_Setpoint_Min",        None, 1),
+    (75,  "Circuit2_Setpoint_Max",       None, 1),
+    (76,  "Circuit2_Setpoint_Min",       None, 1),
+    (107, "Frost_L1_Ambient_Start",      None, 1),
+    (108, "Frost_L2_Ambient_Start",      None, 1),
+    (109, "Frost_L2_Ambient_Stop",       None, 1),
+    (110, "Frost_L2_Water_Start",        None, 1),
+    (111, "Frost_L2_Water_Stop",         None, 1),
 ]
 # Derived frozenset of keys that _handle_setdata writes — used to preserve them across
 # realtime frames without manually maintaining a second list.
