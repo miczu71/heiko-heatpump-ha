@@ -352,18 +352,28 @@ class TestParseFrame:
         rt = bytearray(build_request_realtime(TEST_MN))
         rt[-3] ^= 0xFF
         with caplog.at_level(logging.DEBUG):
-            parse_frame(bytes(rt))
-        assert any(r.levelno == logging.WARNING and "CRC mismatch" in r.message for r in caplog.records)
+            frame = parse_frame(bytes(rt))
+        assert frame is not None and frame.crc_ok is False
+        recs = [r for r in caplog.records if "CRC mismatch" in r.message]
+        assert recs and all(r.levelno == logging.WARNING for r in recs)
+        assert "server->unit" in recs[0].message
 
         caplog.clear()
-        sp = bytearray(rt)
-        sp[0:2] = b"\xAA\x55"
-        sp[12] = 0x02  # CMD_SETPARAMS
+        sp = bytearray(TestUnitToServerCrc._unit_frame(0x02, 138))
+        sp[-3] ^= 0xFF
         with caplog.at_level(logging.DEBUG):
             frame = parse_frame(bytes(sp))
         assert frame is not None and frame.crc_ok is False
         recs = [r for r in caplog.records if "CRC mismatch" in r.message]
         assert recs and all(r.levelno == logging.WARNING for r in recs)
+        assert "unit->server" in recs[0].message
+
+    def test_valid_frames_do_not_log_crc_mismatch(self, caplog):
+        import logging
+        with caplog.at_level(logging.DEBUG):
+            parse_frame(build_request_realtime(TEST_MN))
+            parse_frame(TestUnitToServerCrc._unit_frame(0x02, 138))
+        assert not [r for r in caplog.records if "CRC mismatch" in r.message]
 
 
 class TestUnitToServerCrc:

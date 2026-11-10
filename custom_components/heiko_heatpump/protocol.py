@@ -256,9 +256,9 @@ def parse_frame(raw: bytes) -> Optional[HeatPumpFrame]:
 
     if not crc_ok:
         _LOGGER.warning(
-            "CRC mismatch: received 0x%04X, computed 0x%04X "
-            "(cmd=0x%02X, %s, payload=%d B). Frame may be corrupted.",
-            recv_crc, computed_crc, command,
+            "CRC mismatch: received 0x%04X, computed 0x%04X (xor 0x%04X; "
+            "cmd=0x%02X, %s, payload=%d B). Frame is still processed.",
+            recv_crc, computed_crc, recv_crc ^ computed_crc, command,
             "server->unit" if is_server_to_unit else "unit->server",
             len(payload),
         )
