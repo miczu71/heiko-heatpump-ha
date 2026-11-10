@@ -1,0 +1,46 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Pompa ciepła Heiko / Neoheat",
+        "description": "Połącz się z mostkiem WiFi–RS-485 USR-W600. Cała komunikacja odbywa się w Twojej sieci lokalnej — bez chmury.",
+        "data": {
+          "host": "Adres IP mostka",
+          "port": "Port TCP",
+          "mn": "MN jednostki / adres MAC (12 znaków hex, np. A1B2C3D4E5F6)",
+          "flow_rate_lps": "Przepływ wody (l/s) — z instrukcji: Eko II 6=0,29, 9=0,43, 12=0,57, 15=0,714, 19=0,92"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nie można połączyć się z mostkiem pod podanym adresem i portem. Sprawdź adres IP, port i sieć.",
+      "invalid_mn": "MN musi mieć dokładnie 12 znaków hex (6 bajtów), np. A1B2C3D4E5F6 lub F4:70:0C:77:F0:1A."
+    },
+    "abort": {
+      "already_configured": "Ta pompa ciepła (MN) jest już skonfigurowana."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "host": "Adres IP mostka",
+          "port": "Port TCP",
+          "mn": "MN jednostki / adres MAC (12 znaków hex, np. A1B2C3D4E5F6)",
+          "flow_rate_lps": "Przepływ wody (l/s) — z instrukcji: Eko II 6=0,29, 9=0,43, 12=0,57, 15=0,714, 19=0,92",
+          "debug_slot_logging": "Loguj na poziomie INFO każdy zmieniony surowy slot setdata/realtime (pomoc przy odkrywaniu rejestrów — głośne, wyłącz, o ile nie mapujesz rejestrów)",
+          "power_entity": "Zewnętrzny licznik mocy do COP (opcjonalnie; W lub kW). Zostaw puste, aby użyć napięcia × prądu z pompy"
+        }
+      }
+    },
+    "error": {
+      "invalid_mn": "MN musi mieć dokładnie 12 znaków hex (6 bajtów), np. A1B2C3D4E5F6 lub F4:70:0C:77:F0:1A."
+    }
+  },
+  "issues": {
+    "pump_not_responding": {
+      "title": "Pompa ciepła nie odpowiada",
+      "description": "Brak danych z pompy ciepła od {minutes} min (ostatnia ramka: {last_seen}).\n\nCo sprawdzić:\n1. Czy mostek USR-W600 jest zasilany\n2. Czy W600 jest połączony z WiFi (dioda powinna świecić stale)\n3. Czy kabel RS-485 pompy jest podłączony do W600\n4. Po restarcie W600 pompa może zacząć wysyłać ramki dopiero po ok. 60 s\n\nTo powiadomienie zniknie samo po przywróceniu komunikacji."
+    }
+  }
+}
