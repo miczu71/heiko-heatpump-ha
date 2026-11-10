@@ -105,7 +105,7 @@ _BASE_DESCS: list[HeikoNumberEntityDescription] = [
         key="dhw_restart_dt",
         name="DHW Restart ΔT",
         icon="mdi:thermometer-water",
-        min_value=1.0, max_value=15.0, step=1.0,
+        min_value=2.0, max_value=15.0, step=1.0,
         unit=UnitOfTemperature.CELSIUS,
         read_key="DHW_Restart_DT",
         write=lambda coord, v: coord.async_set_dhw_restart_dt(v),
@@ -115,7 +115,7 @@ _BASE_DESCS: list[HeikoNumberEntityDescription] = [
         key="anti_leg_setpoint",
         name="Anti-Legionella Setpoint",
         icon="mdi:thermometer-high",
-        min_value=40.0, max_value=70.0, step=1.0,
+        min_value=60.0, max_value=70.0, step=1.0,
         unit=UnitOfTemperature.CELSIUS,
         read_key="Anti_Leg_Setpoint",
         write=lambda coord, v: coord.async_set_anti_leg_setpoint(v),
@@ -124,7 +124,7 @@ _BASE_DESCS: list[HeikoNumberEntityDescription] = [
         key="anti_leg_duration",
         name="Anti-Legionella Duration",
         icon="mdi:timer",
-        min_value=1.0, max_value=120.0, step=1.0,
+        min_value=5.0, max_value=60.0, step=1.0,
         unit=UnitOfTime.MINUTES,
         read_key="Anti_Leg_Duration",
         write=lambda coord, v: coord.async_set_anti_leg_duration(v),
@@ -133,14 +133,15 @@ _BASE_DESCS: list[HeikoNumberEntityDescription] = [
         key="anti_leg_finish",
         name="Anti-Legionella Finish Time",
         icon="mdi:timer-check",
-        min_value=1.0, max_value=240.0, step=1.0,
+        min_value=10.0, max_value=240.0, step=1.0,
         unit=UnitOfTime.MINUTES,
         read_key="Anti_Leg_Finish",
         write=lambda coord, v: coord.async_set_anti_leg_finish(v),
     ),
 ]
 
-# Heating curve ambient and water temperature breakpoints (points 1–5)
+# Heating curve ambient and water temperature breakpoints (points 1–5).
+# Water range 25–55 °C is the controller's own limit for curve points.
 _CURVE_DESCS: list[HeikoNumberEntityDescription] = [
     *(
         HeikoNumberEntityDescription(
@@ -159,7 +160,7 @@ _CURVE_DESCS: list[HeikoNumberEntityDescription] = [
             key=f"curve_water_{pt}",
             name=f"HC Water {pt}",
             icon="mdi:water-thermometer",
-            min_value=15.0, max_value=60.0, step=1.0,
+            min_value=25.0, max_value=55.0, step=1.0,
             unit=UnitOfTemperature.CELSIUS,
             read_key=f"Curve_Water_{pt}",
             write=lambda coord, v, _pt=pt: coord.async_set_curve_water(_pt, v),
@@ -168,6 +169,10 @@ _CURVE_DESCS: list[HeikoNumberEntityDescription] = [
     ),
 ]
 
+
+# Ranges for DHW restart ΔT, anti-Legionella, curve water points, P0 timing and
+# backup start delay are clamped to the limits the controller itself enforces
+# (matched by parameter name; only ever narrowed, never widened).
 
 # Circulation pump P0 interval timing — Etap 7 (2026-09-23), confirmed by a
 # live panel diff session (installer-level menu, not covered by the portal
@@ -179,7 +184,7 @@ _CIRC_PUMP_DESCS: list[HeikoNumberEntityDescription] = [
         key="circ_pump_run_time",
         name="Circulation Pump P0 Run Time",
         icon="mdi:timer-play",
-        min_value=1.0, max_value=30.0, step=1.0,
+        min_value=1.0, max_value=10.0, step=1.0,
         unit=UnitOfTime.MINUTES,
         read_key="Circ_Pump_Run_Time",
         write=lambda coord, v: coord.async_set_circ_pump_run_time(v),
@@ -188,7 +193,7 @@ _CIRC_PUMP_DESCS: list[HeikoNumberEntityDescription] = [
         key="circ_pump_stop_time",
         name="Circulation Pump P0 Stop Time",
         icon="mdi:timer-pause",
-        min_value=1.0, max_value=60.0, step=1.0,
+        min_value=5.0, max_value=60.0, step=1.0,
         unit=UnitOfTime.MINUTES,
         read_key="Circ_Pump_Stop_Time",
         write=lambda coord, v: coord.async_set_circ_pump_stop_time(v),
@@ -224,7 +229,7 @@ _BACKUP_DESCS: list[HeikoNumberEntityDescription] = [
         key="backup_start_delay",
         name="Backup Source Start Delay",
         icon="mdi:timer-sand",
-        min_value=1.0, max_value=120.0, step=1.0,
+        min_value=5.0, max_value=120.0, step=1.0,
         unit=UnitOfTime.MINUTES,
         read_key="Backup_HWTBH_Temp_Rise_Interval",
         write=lambda coord, v: coord.async_set_backup_start_delay(v),
