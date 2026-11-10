@@ -347,7 +347,7 @@ class TestParseFrame:
         assert frame.crc_ok is False
 
     def test_crc_mismatch_log_level(self, caplog):
-        """Realtime CRC mismatch warns; setparams (cmd 0x02, unit->server) stays at debug."""
+        """A CRC mismatch warns for every command, setparams (cmd 0x02, unit->server) included."""
         import logging
         rt = bytearray(build_request_realtime(TEST_MN))
         rt[-3] ^= 0xFF
@@ -359,12 +359,48 @@ class TestParseFrame:
         sp = bytearray(rt)
         sp[0:2] = b"\xAA\x55"
         sp[12] = 0x02  # CMD_SETPARAMS
-        sp[-3] ^= 0xFF
         with caplog.at_level(logging.DEBUG):
             frame = parse_frame(bytes(sp))
         assert frame is not None and frame.crc_ok is False
         recs = [r for r in caplog.records if "CRC mismatch" in r.message]
-        assert recs and all(r.levelno == logging.DEBUG for r in recs)
+        assert recs and all(r.levelno == logging.WARNING for r in recs)
+
+
+class TestUnitToServerCrc:
+    """unit→server (AA 55) frames: CRC-16/Modbus over raw[2:payload_end], no offset.
+
+    The legacy XOR offsets (0x0903 realtime, 0x04B3 setdata) were an artefact of
+    including the 2-byte AA 55 header in the CRC range (HeatStar.exe analysis).
+    """
+
+    @staticmethod
+    def _unit_frame(command: int, n_floats: int, *, crc_fix: int = 0) -> bytes:
+        payload = b"\x00\x00" + b"".join(struct.pack("<f", 1.5 + i) for i in range(n_floats))
+        body = (
+            bytes([0x01]) + TEST_MN + bytes([0x01])
+            + struct.pack("<H", len(payload) + 1) + bytes([command]) + payload
+        )
+        crc = (crc16_modbus(body) ^ crc_fix) & 0xFFFF
+        return b"\xAA\x55" + body + struct.pack("<H", crc) + b"\x3A"
+
+    def test_realtime_frame_crc_ok(self):
+        frame = parse_frame(self._unit_frame(CMD_REALTIME, 45))
+        assert frame is not None and frame.crc_ok is True
+
+    def test_setdata_frame_crc_ok(self):
+        frame = parse_frame(self._unit_frame(0x02, 138))
+        assert frame is not None and frame.crc_ok is True
+
+    def test_legacy_offsets_are_header_artefact(self):
+        """crc(AA55||X) ^ crc(X) depends only on length: 45 floats -> 0x0903, 138 -> 0x04B3."""
+        for n_floats, legacy in ((45, 0x0903), (138, 0x04B3)):
+            raw = self._unit_frame(0x01, n_floats)
+            body = raw[2:-3]
+            assert crc16_modbus(raw[:-3]) ^ crc16_modbus(body) == legacy
+
+    def test_legacy_offset_frame_is_now_a_mismatch(self):
+        frame = parse_frame(self._unit_frame(CMD_REALTIME, 45, crc_fix=0x0903))
+        assert frame is not None and frame.crc_ok is False
 
 
 # ── FrameBuffer ────────────────────────────────────────────────────────────────

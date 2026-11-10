@@ -14,10 +14,9 @@ Payload layout for CMD 0x01 (realtime data):
   - Bytes 2+:   IEEE 754 little-endian float array, indexed by parameter index.
                 Parameter at index i lives at payload offset = 2 + i * 4.
 
-⚠ CRC algorithm: CRC-16/Modbus (poly 0x8005, init 0xFFFF, reflect in/out, no final XOR).
-  This is the standard for RS-485/Modbus devices and is consistent with the protocol family.
-  It CANNOT be verified from the provided truncated example frame (frame ends before CRC bytes).
-  If CRC mismatches occur at runtime, try CRC-16/CCITT as an alternative (see crc16_ccitt below).
+CRC algorithm: CRC-16/Modbus (poly 0x8005, init 0xFFFF, reflect in/out, no final XOR) over the
+  frame bytes after the 2-byte AA 55 / 55 AA header up to the end of the payload, in both
+  directions, without any offset (confirmed from the service tool's own CRC routine).
 """
 
 from __future__ import annotations
@@ -156,12 +155,7 @@ PARAM_MAP: dict[str, tuple[int, str, str]] = {
 def crc16_modbus(data: bytes) -> int:
     """
     CRC-16/Modbus: poly=0x8005, init=0xFFFF, reflect input and output, no final XOR.
-    This is the standard CRC for RS-485 Modbus-family devices.
-
-    ⚠ UNVERIFIED: The example frame in the documentation is truncated before the CRC
-      bytes; this algorithm is chosen based on the protocol family (RS-485, Modbus-like).
-      If you observe consistent CRC failures, try crc16_ccitt() instead and update
-      CHOSEN_CRC below.
+    This is the CRC used by the pump protocol (frame bytes after the 2-byte header).
     """
     crc = 0xFFFF
     for byte in data:
@@ -188,7 +182,7 @@ def crc16_ccitt(data: bytes) -> int:
     return crc
 
 
-# Active CRC function — change to crc16_ccitt if Modbus proves wrong at runtime
+# Active CRC function
 _compute_crc = crc16_modbus
 
 
@@ -253,32 +247,15 @@ def parse_frame(raw: bytes) -> Optional[HeatPumpFrame]:
     payload    = raw[13:payload_end]
     recv_crc   = struct.unpack_from('<H', raw, payload_end)[0]  # CRC is LE uint16
 
-    # CRC verification — rules differ by direction:
-    #   server → unit (55 AA): CRC-16/Modbus of body bytes EXCLUDING the 2-byte
-    #     header, no XOR offset. Confirmed from captured cloud→pump frames
-    #     (CMD 0x03 ACK-RT, CMD 0x04 ACK-SET, CMD 0x05 WRITE).
-    #   unit → server (AA 55): CRC-16/Modbus of FULL body INCLUDING header,
-    #     XOR'd with a command-dependent offset (0x0903 for CMD 0x01, 0x0DB0
-    #     for CMD 0x02). We keep the 0x0903 convention for realtime frames;
-    #     setdata CRC mismatches are tolerated (data still decodes fine).
-    if is_server_to_unit:
-        computed_crc = _compute_crc(raw[2:payload_end]) & 0xFFFF
-    else:
-        _offset = _PUMP_CRC_OFFSET_SETDATA if command == CMD_SETPARAMS else _PUMP_CRC_OFFSET
-        computed_crc = (_compute_crc(raw[:payload_end]) ^ _offset) & 0xFFFF
+    # CRC verification, same rule in both directions: CRC-16/Modbus of the bytes
+    # after the 2-byte header up to the end of the payload, no XOR offset.
+    # (The 0x0903 / 0x04B3 offsets earlier versions applied were an artefact of
+    # including the AA 55 header in the CRC range; they depend only on frame length.)
+    computed_crc = _compute_crc(raw[2:payload_end]) & 0xFFFF
     crc_ok = (recv_crc == computed_crc)
 
     if not crc_ok:
-        # The pump's setparams snapshot (cmd 0x02) arrives with a CRC offset
-        # other than 0x0DB0 (0x04B3 observed); data decodes fine, so keep the
-        # once-a-minute noise out of the warning log. Other frames still warn.
-        _level = (
-            logging.DEBUG
-            if command == CMD_SETPARAMS and not is_server_to_unit
-            else logging.WARNING
-        )
-        _LOGGER.log(
-            _level,
+        _LOGGER.warning(
             "CRC mismatch: received 0x%04X, computed 0x%04X "
             "(cmd=0x%02X, %s, payload=%d B). Frame may be corrupted.",
             recv_crc, computed_crc, command,
@@ -364,14 +341,6 @@ def extract_all_floats(payload: bytes) -> dict[int, float]:
 
 
 # ── Frame building ─────────────────────────────────────────────────────────────
-
-# The pump uses a CRC variant that differs from our CRC-16/Modbus by a constant
-# XOR offset of 0x0903 on every frame. Confirmed from 29 received frames where
-# received XOR computed = 0x0903 without exception.
-# We apply the same offset to outgoing frames so the pump accepts them.
-_PUMP_CRC_OFFSET         = 0x0903   # CMD 0x01 realtime (confirmed from 29 frames)
-_PUMP_CRC_OFFSET_SETDATA = 0x0DB0   # CMD 0x02 setdata (confirmed from CRC mismatch analysis)
-
 
 def _build_frame(
     target: int,

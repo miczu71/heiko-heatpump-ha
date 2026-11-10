@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.15.2] - 2026-11-10
+
+### Fixed
+- CRC check of frames received from the pump now uses the pump's real rule (CRC-16/Modbus over the bytes after the 2-byte header, no offset). The previous XOR offsets were an artefact of including the header in the CRC range, so every setdata frame was reported as a CRC mismatch. A genuine CRC mismatch is now logged as a warning for all frame types. Parsed values are unchanged.
+
 ## [1.15.1] - 2026-11-10
 
 ### Fixed
